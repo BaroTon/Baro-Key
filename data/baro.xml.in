@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<component>
+  <name>org.freedesktop.IBus.Baro</name>
+  <description>BARO Vietnamese Input Method</description>
+  <exec>@EXEC@</exec>
+  <version>0.1.0</version>
+  <author>BARO</author>
+  <license>MIT</license>
+  <homepage>https://github.com/baro-ime/baro</homepage>
+  <textdomain>baro</textdomain>
+  <engines>
+    <engine>
+      <name>baro</name>
+      <longname>BARO</longname>
+      <description>Bộ gõ tiếng Việt (Telex, VNI)</description>
+      <language>vi</language>
+      <license>MIT</license>
+      <author>BARO</author>
+      <layout>us</layout>
+      <rank>1</rank>
+      <symbol>VI</symbol>
+      <icon>input-keyboard</icon>
+    </engine>
+  </engines>
+</component>

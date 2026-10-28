@@ -1,0 +1,119 @@
+#!/usr/bin/env python3
+"""BARO settings window (GTK4)."""
+
+from __future__ import annotations
+
+import os
+import sys
+
+import gi
+
+gi.require_version("Gtk", "4.0")
+from gi.repository import Gtk  # noqa: E402
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
+from baro import config  # noqa: E402
+
+
+class BaroSettings(Gtk.Application):
+    def __init__(self):
+        super().__init__(application_id="io.github.baro.Settings")
+        self.window = None
+
+    def do_activate(self):
+        if self.window is None:
+            self.window = SettingsWindow(self)
+        self.window.present()
+
+
+class SettingsWindow(Gtk.ApplicationWindow):
+    def __init__(self, app):
+        super().__init__(application=app, title="BARO — Bộ gõ tiếng Việt")
+        self.set_default_size(420, -1)
+
+        self.config = config.load()
+
+        header = Gtk.HeaderBar()
+        self.set_titlebar(header)
+
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=18)
+        box.set_margin_top(24)
+        box.set_margin_bottom(24)
+        box.set_margin_start(24)
+        box.set_margin_end(24)
+        self.set_child(box)
+
+        title = Gtk.Label(label="BARO")
+        title.add_css_class("title-1")
+        title.set_xalign(0)
+        box.append(title)
+
+        subtitle = Gtk.Label(label="Bộ gõ tiếng Việt cho Linux")
+        subtitle.add_css_class("dim-label")
+        subtitle.set_xalign(0)
+        box.append(subtitle)
+
+        box.append(Gtk.Separator())
+
+        method_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        method_label = Gtk.Label(label="Kiểu gõ")
+        method_label.set_xalign(0)
+        method_label.set_hexpand(True)
+        self.method = Gtk.DropDown.new_from_strings(["Telex", "VNI"])
+        self.method.set_selected(0 if self.config["method"] == "telex" else 1)
+        method_box.append(method_label)
+        method_box.append(self.method)
+        box.append(method_box)
+
+        style_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        style_label = Gtk.Label(label="Vị trí dấu thanh")
+        style_label.set_xalign(0)
+        style_label.set_hexpand(True)
+        self.style = Gtk.DropDown.new_from_strings(["Hiện đại (hoà)", "Cổ điển (hòa)"])
+        self.style.set_selected(0 if self.config["tone_style"] == "modern" else 1)
+        style_box.append(style_label)
+        style_box.append(self.style)
+        box.append(style_box)
+
+        start_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        start_label = Gtk.Label(label="Khởi động ở chế độ tiếng Việt")
+        start_label.set_xalign(0)
+        start_label.set_hexpand(True)
+        self.start_enabled = Gtk.Switch()
+        self.start_enabled.set_active(bool(self.config["start_enabled"]))
+        start_box.append(start_label)
+        start_box.append(self.start_enabled)
+        box.append(start_box)
+
+        hint = Gtk.Label(
+            label="Chuyển Việt/Anh: Ctrl + `  ·  Đổi bộ gõ: Super + Space"
+        )
+        hint.add_css_class("dim-label")
+        hint.set_xalign(0)
+        hint.set_wrap(True)
+        box.append(hint)
+
+        self.status = Gtk.Label(label="")
+        self.status.add_css_class("dim-label")
+        self.status.set_xalign(0)
+        box.append(self.status)
+
+        save = Gtk.Button(label="Lưu")
+        save.add_css_class("suggested-action")
+        save.connect("clicked", self.on_save)
+        box.append(save)
+
+    def on_save(self, _button):
+        self.config["method"] = "telex" if self.method.get_selected() == 0 else "vni"
+        self.config["tone_style"] = "modern" if self.style.get_selected() == 0 else "old"
+        self.config["start_enabled"] = self.start_enabled.get_active()
+        config.save(self.config)
+        self.status.set_text("Đã lưu. Cấu hình áp dụng khi focus lại ô nhập.")
+
+
+def main() -> None:
+    BaroSettings().run(sys.argv)
+
+
+if __name__ == "__main__":
+    main()
