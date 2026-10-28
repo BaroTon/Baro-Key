@@ -51,11 +51,18 @@ MODIFIER_KEYS = {
 
 class BaroEngine(IBus.Engine):
     def __init__(self, bus, object_path):
-        super().__init__(bus, object_path)
+        kwargs = {
+            "connection": bus.get_connection(),
+            "object_path": object_path,
+        }
+        if hasattr(IBus.Engine.props, "has_focus_id"):
+            kwargs["has_focus_id"] = True
+        super().__init__(**kwargs)
         self.config = load()
         self._config_mtime = self._mtime()
         self.buffer = ""
         self.vietnamese = bool(self.config.get("start_enabled", True))
+        self.purpose = IBus.InputPurpose.FREE_FORM
         self._props = IBus.PropList()
         self._mode_prop = IBus.Property(
             key="baro-mode",
@@ -73,6 +80,9 @@ class BaroEngine(IBus.Engine):
         except Exception:
             self._props = IBus.PropList()
             self._mode_prop = None
+
+    def _is_password(self) -> bool:
+        return self.purpose in (IBus.InputPurpose.PASSWORD, IBus.InputPurpose.PIN)
 
     def _mtime(self) -> float:
         try:
@@ -128,6 +138,12 @@ class BaroEngine(IBus.Engine):
         self.vietnamese = not self.vietnamese
         self._update_mode_property()
 
+    def do_set_content_type(self, purpose, hints):
+        self.purpose = purpose
+        if self._is_password():
+            self.buffer = ""
+            self.hide_preedit_text()
+
     def do_enable(self):
         self._reload_config(force=True)
         self.buffer = ""
@@ -154,6 +170,11 @@ class BaroEngine(IBus.Engine):
         return True
 
     def do_process_key_event(self, keyval, keycode, state):
+        if self._is_password():
+            self.buffer = ""
+            self.hide_preedit_text()
+            return False
+
         if state & IBus.ModifierType.RELEASE_MASK:
             return False
 
@@ -221,7 +242,10 @@ class BaroEngine(IBus.Engine):
             return True
 
         if method == "vni" and char.isdigit():
-            if self.buffer and any(ch in core.VOWELS for ch in self.buffer.lower()):
+            lower = self.buffer.lower()
+            has_vowel = any(ch in core.VOWELS for ch in lower)
+            modifies_d = char == "9" and lower.endswith("d")
+            if self.buffer and (has_vowel or modifies_d):
                 self.buffer += char
                 self._show_preedit()
                 return True
@@ -232,14 +256,29 @@ class BaroEngine(IBus.Engine):
         return False
 
 
+class BaroEngineFactory(IBus.Factory):
+    def __init__(self, bus):
+        super().__init__(
+            connection=bus.get_connection(), object_path=IBus.PATH_FACTORY
+        )
+        self._bus = bus
+        self._count = 0
+
+    def do_create_engine(self, engine_name):
+        if engine_name != ENGINE_NAME:
+            raise ValueError(f"unknown engine: {engine_name}")
+        path = f"/org/freedesktop/IBus/Engine/Baro/{self._count}"
+        self._count += 1
+        return BaroEngine(self._bus, path)
+
+
 def main() -> None:
     IBus.init()
     bus = IBus.Bus()
     if not bus.is_connected():
         print("BARO: cannot connect to the IBus daemon", file=sys.stderr)
         raise SystemExit(1)
-    factory = IBus.Factory.new(bus.get_connection())
-    factory.add_engine(ENGINE_NAME, BaroEngine)
+    factory = BaroEngineFactory(bus)
     bus.request_name(BUS_NAME, 0)
     IBus.main()
 

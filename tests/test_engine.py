@@ -23,6 +23,7 @@ class FakeEngine(BaroEngine):
         self._config_mtime = 0.0
         self.buffer = ""
         self.vietnamese = True
+        self.purpose = IBus.InputPurpose.FREE_FORM
         self._mode_prop = None
         self.preedit = ""
         self.preedit_visible = False
@@ -100,6 +101,20 @@ class EngineKeyEventTest(unittest.TestCase):
         self.assertTrue(handled)
         self.assertFalse(engine.vietnamese)
         self.assertEqual(engine.committed, ["việt"])
+
+    def test_password_field_passes_keys_through(self):
+        for purpose in (IBus.InputPurpose.PASSWORD, IBus.InputPurpose.PIN):
+            engine = FakeEngine()
+            engine.do_set_content_type(purpose, 0)
+            self.assertFalse(engine.press("a"))
+            self.assertFalse(engine.press("a"))
+            self.assertEqual(engine.preedit, "")
+            self.assertEqual(engine.committed, [])
+
+    def test_vni_d9_makes_d_stroke(self):
+        engine = FakeEngine(method="vni")
+        engine.type_text("D9")
+        self.assertEqual(engine.preedit, "Đ")
 
     def test_vni_digit_outside_word_passes_through(self):
         engine = FakeEngine(method="vni")
