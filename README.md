@@ -196,6 +196,7 @@ Cấu trúc:
 | `bin/baro-settings` | cửa sổ cấu hình GTK4 |
 | `desktop/` | icon, logo và file launcher |
 | `tools/screenshots.py` | sinh screenshot cho README |
+| `tools/make_icons.py` | sinh icon ứng dụng từ `desktop/barokey-source.png` |
 
 ## Giới hạn hiện tại
 

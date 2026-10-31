@@ -22,7 +22,7 @@ spec = importlib.util.spec_from_loader("baro_settings", loader)
 app_mod = importlib.util.module_from_spec(spec)
 loader.exec_module(app_mod)
 
-from gi.repository import GLib, Gtk  # noqa: E402
+from gi.repository import Gio, GLib, Gtk  # noqa: E402
 
 # (file name, page, theme)
 SHOTS = [
@@ -78,6 +78,8 @@ def run(app):
 def main():
     os.makedirs(OUT, exist_ok=True)
     app = app_mod.BaroKeyApp()
+    # Do not hand off to an already running BaroKey window.
+    app.set_flags(Gio.ApplicationFlags.NON_UNIQUE)
     app.connect_after("activate", run)
     app.run([sys.argv[0]])
 
