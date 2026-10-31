@@ -44,6 +44,33 @@ class ConfigTests(unittest.TestCase):
         config.save(data)
         self.assertEqual(config.load()["ui_style"], "default")
 
+    def test_free_shortcut_validation(self):
+        for good in (
+            "ctrl+shift+v", "ctrl+alt+k", "super+space", "f9", "shift+f9",
+            "ctrl+f12", "alt+grave", "ctrl+shift+1", "ctrl+page_up",
+            "CTRL+Shift+V",
+        ):
+            self.assertTrue(config.valid_shortcut(good), good)
+        for bad in (
+            "a", "shift+a", "shift+1", "ctrl", "ctrl+control_l", "ctrl+ctrl+a",
+            "", "ctrl+", "hyper+a", "ctrl+a b", "f40", "shift+tab", None, 5,
+        ):
+            self.assertFalse(config.valid_shortcut(bad), bad)
+
+    def test_shortcut_is_normalized(self):
+        self.assertEqual(config.normalize_shortcut("Shift+CTRL+V"), "ctrl+shift+v")
+        self.assertEqual(config.normalize_shortcut("F9"), "f9")
+
+    def test_free_shortcut_round_trip(self):
+        data = dict(config.DEFAULTS, shortcut_toggle="ctrl+alt+k", shortcut_enable="f9")
+        config.save(data)
+        loaded = config.load()
+        self.assertEqual(loaded["shortcut_toggle"], "ctrl+alt+k")
+        self.assertEqual(loaded["shortcut_enable"], "f9")
+        data["shortcut_toggle"] = "a"
+        config.save(data)
+        self.assertEqual(config.load()["shortcut_toggle"], config.DEFAULTS["shortcut_toggle"])
+
     def test_invalid_values_fall_back(self):
         os.makedirs(config.config_dir(), exist_ok=True)
         with open(config.config_path(), "w", encoding="utf-8") as handle:

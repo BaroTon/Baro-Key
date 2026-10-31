@@ -104,8 +104,8 @@ rồi đăng xuất và đăng nhập lại. Muốn quay lại Fcitx5: `im-confi
 | Việc cần làm | Cách làm |
 | --- | --- |
 | Chuyển nguồn nhập (BARO ↔ bàn phím khác) | `Super + Space` |
-| Chuyển chế độ Việt / Anh | `Ctrl + Shift + V` (mặc định, đổi được); `` Ctrl + ` `` luôn dùng được |
-| Bật / tắt bộ gõ | `Ctrl + Shift + B` (mặc định, đổi được) |
+| Chuyển chế độ Việt / Anh | `Ctrl + Shift + V` (mặc định, gán lại tự do); `` Ctrl + ` `` luôn dùng được |
+| Bật / tắt bộ gõ | `Ctrl + Shift + B` (mặc định, gán lại tự do) |
 | Mở cửa sổ cấu hình | Menu ứng dụng → **BaroKey**, hoặc `baro-settings` |
 
 Ví dụ Telex: gõ `Vieejt Nam` → `Việt Nam`. Ví dụ VNI: gõ `Vie6t5 Nam` → `Việt Nam`.
@@ -142,7 +142,16 @@ Hiện dùng **Unicode**. TCVN3 và VNI Windows hiển thị để tham khảo n
 
 ### Phím tắt
 
-Bấm **Thay đổi** để chọn phím chuyển Việt/Anh và phím bật/tắt bộ gõ từ các tổ hợp có sẵn.
+Bấm **Thay đổi** rồi **nhấn tổ hợp phím bạn muốn** để gán cho phím chuyển Việt/Anh và phím
+bật/tắt bộ gõ. Có thể dùng bất kỳ phím nào, miễn là có Ctrl, Alt hoặc Super đi kèm
+(ví dụ `Ctrl + Alt + K`, `Super + Space`, `Ctrl + Shift + 1`); riêng các phím `F1`–`F35` dùng được
+một mình. Hộp thoại báo lỗi nếu tổ hợp không hợp lệ hoặc trùng với phím tắt còn lại, có nút
+**Mặc định** để quay về ban đầu và vài gợi ý nhanh.
+
+<p align="center"><img src="docs/screenshots/shortcut-dialog.png" alt="Gán phím tắt tự do" width="420"></p>
+
+Lưu ý: `Ctrl + Shift + V` (mặc định) là phím dán trong terminal. Nếu hay dán trong terminal, hãy đổi
+sang tổ hợp khác. Phím có Shift như `Ctrl + Shift + 1` được so khớp theo bố cục bàn phím US.
 
 <p align="center"><img src="docs/screenshots/shortcuts.png" alt="Phím tắt" width="760"></p>
 
