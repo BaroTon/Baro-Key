@@ -136,6 +136,22 @@ def load() -> dict:
     return data
 
 
+def apply_changes(on_disk: dict, current: dict, synced: dict) -> dict:
+    """The settings to write: what is on disk plus what the user just changed.
+
+    ``synced`` is what the window last read from or wrote to disk and
+    ``current`` is what it shows now; only keys that differ were changed by the
+    user. Everything else keeps the value on disk, so a setting that the IBus
+    engine changed in the meantime (english_mode, start_enabled) is not
+    overwritten by the window's older copy.
+    """
+    merged = dict(on_disk)
+    for key, value in current.items():
+        if synced.get(key) != value:
+            merged[key] = value
+    return merged
+
+
 def save(data: dict) -> None:
     os.makedirs(config_dir(), exist_ok=True)
     clean = {
