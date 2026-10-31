@@ -24,6 +24,7 @@ DEFAULTS = {
     "macros_enabled": False,
     "macros_when_disabled": False,
     "theme": "dark",
+    "ui_style": "default",
     "notifications": True,
     "shortcut_toggle": "ctrl+shift+v",
     "shortcut_enable": "ctrl+shift+b",
@@ -48,6 +49,7 @@ BOOL_KEYS = (
 )
 
 THEMES = {"auto", "light", "dark"}
+UI_STYLES = {"default", "tahoe"}
 
 _SHORTCUT_RE = re.compile(
     r"^(?:(?:ctrl|alt|shift|super)\+)+(?:[a-z0-9]|grave|space|tab|return|"
@@ -83,6 +85,8 @@ def load() -> dict:
             data["tone_style"] = saved["tone_style"]
         if saved.get("theme") in THEMES:
             data["theme"] = saved["theme"]
+        if saved.get("ui_style") in UI_STYLES:
+            data["ui_style"] = saved["ui_style"]
         for key in BOOL_KEYS:
             if isinstance(saved.get(key), bool):
                 data[key] = saved[key]
@@ -98,6 +102,7 @@ def save(data: dict) -> None:
         "method": data.get("method", DEFAULTS["method"]),
         "tone_style": data.get("tone_style", DEFAULTS["tone_style"]),
         "theme": data.get("theme", DEFAULTS["theme"]),
+        "ui_style": data.get("ui_style", DEFAULTS["ui_style"]),
         "shortcut_toggle": data.get(
             "shortcut_toggle", DEFAULTS["shortcut_toggle"]
         ).lower(),
@@ -111,6 +116,8 @@ def save(data: dict) -> None:
         clean["tone_style"] = DEFAULTS["tone_style"]
     if clean["theme"] not in THEMES:
         clean["theme"] = DEFAULTS["theme"]
+    if clean["ui_style"] not in UI_STYLES:
+        clean["ui_style"] = DEFAULTS["ui_style"]
     for key in ("shortcut_toggle", "shortcut_enable"):
         if not valid_shortcut(clean[key]):
             clean[key] = DEFAULTS[key]

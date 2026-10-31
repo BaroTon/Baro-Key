@@ -148,14 +148,26 @@ Bấm **Thay đổi** để chọn phím chuyển Việt/Anh và phím bật/t�
 
 ### Giao diện
 
-Chọn theme **Sáng**, **Tối** hoặc **Tự động** (theo cài đặt sáng/tối của GNOME), và bật/tắt
-thông báo khi chuyển chế độ. Theme áp dụng ngay, không cần mở lại.
+Chọn **phong cách** (Mặc định hoặc macOS Tahoe), theme **Sáng**, **Tối** hoặc **Tự động**
+(theo cài đặt sáng/tối của GNOME), và bật/tắt thông báo khi chuyển chế độ. Mọi thay đổi áp dụng
+ngay, không cần mở lại.
 
 <p align="center"><img src="docs/screenshots/appearance.png" alt="Giao diện" width="760"></p>
 
 Theme sáng:
 
 <p align="center"><img src="docs/screenshots/overview-light.png" alt="Theme sáng" width="760"></p>
+
+#### Phong cách macOS Tahoe
+
+Phong cách tuỳ chọn lấy cảm hứng từ macOS Tahoe: sidebar nổi bo tròn, card kính mờ, công tắc
+xanh lá, ba nút đóng / thu nhỏ / phóng to kiểu đèn giao thông ở góc trái. Có cả theme sáng và tối.
+GTK4 không làm mờ được nền phía sau cửa sổ, nên hiệu ứng kính được mô phỏng bằng độ trong
+suốt, viền sáng và bóng đổ.
+
+<p align="center"><img src="docs/screenshots/tahoe-overview-light.png" alt="macOS Tahoe, theme sáng" width="760"></p>
+<p align="center"><img src="docs/screenshots/tahoe-overview-dark.png" alt="macOS Tahoe, theme tối" width="760"></p>
+<p align="center"><img src="docs/screenshots/tahoe-appearance-light.png" alt="Chọn phong cách giao diện" width="760"></p>
 
 ### Thông tin
 

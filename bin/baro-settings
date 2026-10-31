@@ -537,6 +537,12 @@ box.keycap.large {
 }
 
 label.keycap {
+    background-color: transparent;
+    background-image: none;
+    border: none;
+    box-shadow: none;
+    min-height: 0;
+    padding: 0;
     color: $keycap_text;
     font-family: "JetBrains Mono", "DejaVu Sans Mono", monospace;
     font-size: 11px;
@@ -947,6 +953,341 @@ label.dialog-title {
 )
 
 
+UI_STYLES = (
+    ("default", "Mặc định", "Giao diện phẳng theo mẫu BaroKey"),
+    ("tahoe", "macOS Tahoe", "Kính mờ, góc bo lớn, công tắc xanh lá"),
+)
+
+# Extra palette keys used only by TAHOE_CSS (merged over DARK / LIGHT).
+TAHOE_DARK = {
+    "t_from": "#14141c",
+    "t_to": "#221d33",
+    "t_glass": "rgba(48, 48, 58, 0.62)",
+    "t_glass_hi": "rgba(66, 66, 78, 0.78)",
+    "t_edge": "rgba(255, 255, 255, 0.13)",
+    "t_edge_soft": "rgba(255, 255, 255, 0.07)",
+    "t_shadow": "rgba(0, 0, 0, 0.45)",
+    "t_accent": "#0a84ff",
+    "t_accent_soft": "rgba(10, 132, 255, 0.20)",
+    "t_green": "#30d158",
+    "t_off": "rgba(120, 120, 128, 0.42)",
+    "t_text": "#f5f5f7",
+    "t_muted": "#a1a1a6",
+}
+
+TAHOE_LIGHT = {
+    "t_from": "#dde6f7",
+    "t_to": "#f4eefb",
+    "t_glass": "rgba(255, 255, 255, 0.60)",
+    "t_glass_hi": "rgba(255, 255, 255, 0.85)",
+    "t_edge": "rgba(255, 255, 255, 0.90)",
+    "t_edge_soft": "rgba(60, 60, 67, 0.10)",
+    "t_shadow": "rgba(40, 50, 120, 0.14)",
+    "t_accent": "#0a84ff",
+    "t_accent_soft": "rgba(10, 132, 255, 0.13)",
+    "t_green": "#34c759",
+    "t_off": "rgba(120, 120, 128, 0.32)",
+    "t_text": "#1d1d1f",
+    "t_muted": "#6e6e73",
+}
+
+# GTK4 cannot blur what is behind the window, so the "glass" is translucent
+# fills, a bright rim and soft shadows. Everything is scoped to .tahoe so the
+# default style is untouched.
+TAHOE_CSS = Template(
+    """
+window.barokey.tahoe {
+    background-color: $t_from;
+    background-image: linear-gradient(135deg, $t_from 0%, $t_to 100%);
+    color: $t_text;
+    font-family: "SF Pro Text", "Inter", "Cantarell", "Noto Sans", sans-serif;
+}
+
+window.barokey.tahoe windowhandle.titlebar,
+window.barokey.tahoe box.titlebar-inner {
+    background-color: transparent;
+    background-image: none;
+    border-bottom: none;
+}
+
+window.barokey.tahoe box.main-area {
+    background-color: transparent;
+    background-image: none;
+}
+
+window.barokey.tahoe box.sidebar {
+    background-color: $t_glass;
+    background-image: none;
+    border: 1px solid $t_edge;
+    border-radius: 26px;
+    box-shadow: 0 12px 40px $t_shadow;
+    margin: 0 0 14px 14px;
+}
+
+window.barokey.tahoe label.brand-title,
+window.barokey.tahoe label.page-title,
+window.barokey.tahoe label.card-value,
+window.barokey.tahoe label.option-title,
+window.barokey.tahoe label.radio-title,
+window.barokey.tahoe label.section-heading,
+window.barokey.tahoe label.card-heading {
+    color: $t_text;
+}
+
+window.barokey.tahoe label.brand-sub,
+window.barokey.tahoe label.page-subtitle,
+window.barokey.tahoe label.option-sub,
+window.barokey.tahoe label.radio-desc,
+window.barokey.tahoe label.card-label {
+    color: $t_muted;
+}
+
+window.barokey.tahoe button.nav {
+    border-radius: 999px;
+    padding: 9px 16px;
+    color: $t_text;
+}
+
+window.barokey.tahoe button.nav:hover {
+    background-color: $t_edge_soft;
+}
+
+window.barokey.tahoe button.nav.current {
+    background-color: $t_accent;
+    background-image: none;
+    color: #ffffff;
+    box-shadow: 0 6px 16px rgba(10, 132, 255, 0.38);
+}
+
+window.barokey.tahoe box.branding-card {
+    background-color: $t_glass_hi;
+    border: 1px solid $t_edge;
+    border-radius: 20px;
+}
+
+window.barokey.tahoe box.card,
+window.barokey.tahoe box.card.option-card,
+window.barokey.tahoe box.card.stats,
+window.barokey.tahoe box.card.small,
+window.barokey.tahoe box.card.shortcuts,
+window.barokey.tahoe box.card.about-card {
+    background-color: $t_glass;
+    background-image: none;
+    border: 1px solid $t_edge;
+    border-radius: 24px;
+    box-shadow: 0 8px 28px $t_shadow;
+}
+
+window.barokey.tahoe box.card.big {
+    background-color: $t_accent;
+    background-image: linear-gradient(135deg, #0a84ff 0%, #5e5ce6 100%);
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 28px;
+    box-shadow: 0 16px 38px rgba(10, 132, 255, 0.30);
+}
+
+window.barokey.tahoe label.big-status {
+    color: rgba(255, 255, 255, 0.88);
+}
+
+window.barokey.tahoe box.big-switch-shell {
+    background-color: rgba(255, 255, 255, 0.28);
+    border: 1px solid rgba(255, 255, 255, 0.55);
+}
+
+window.barokey.tahoe box.hoverable:hover {
+    background-color: $t_glass_hi;
+}
+
+window.barokey.tahoe box.card.info-banner {
+    background-color: $t_accent_soft;
+    border: 1px solid rgba(10, 132, 255, 0.28);
+    box-shadow: none;
+}
+
+window.barokey.tahoe box.icon-tile,
+window.barokey.tahoe box.key-tile {
+    background-color: $t_glass_hi;
+    border: 1px solid $t_edge;
+    border-radius: 14px;
+}
+
+window.barokey.tahoe box.keycap,
+window.barokey.tahoe box.radio-right {
+    background-color: $t_glass_hi;
+    border: 1px solid $t_edge_soft;
+    border-radius: 10px;
+}
+
+window.barokey.tahoe label.badge {
+    background-color: $t_accent_soft;
+    border-color: transparent;
+    border-radius: 999px;
+    color: $t_accent;
+}
+
+window.barokey.tahoe button.primary {
+    background-color: $t_accent;
+    background-image: none;
+    border-radius: 999px;
+    padding: 8px 20px;
+    box-shadow: 0 4px 12px rgba(10, 132, 255, 0.35);
+}
+
+window.barokey.tahoe button.primary:hover {
+    background-color: #2f9bff;
+}
+
+window.barokey.tahoe button.ghost,
+window.barokey.tahoe button.about-link {
+    background-color: $t_glass_hi;
+    border: 1px solid $t_edge;
+    border-radius: 999px;
+    color: $t_text;
+}
+
+window.barokey.tahoe button.ghost:hover,
+window.barokey.tahoe button.about-link:hover {
+    background-color: $t_accent_soft;
+    border-color: $t_accent;
+}
+
+window.barokey.tahoe switch,
+window.barokey.tahoe switch.big {
+    background-color: $t_off;
+}
+
+window.barokey.tahoe switch:checked,
+window.barokey.tahoe switch.big:checked {
+    background-color: $t_green;
+}
+
+window.barokey.tahoe switch > slider {
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.28);
+}
+
+window.barokey.tahoe button.radio-card,
+window.barokey.tahoe button.theme-card {
+    background-color: $t_glass;
+    background-image: none;
+    border: 1px solid $t_edge;
+    border-radius: 22px;
+    box-shadow: 0 6px 22px $t_shadow;
+}
+
+window.barokey.tahoe button.radio-card:hover,
+window.barokey.tahoe button.theme-card:hover {
+    background-color: $t_glass_hi;
+    border-color: $t_edge;
+}
+
+window.barokey.tahoe button.radio-card.selected,
+window.barokey.tahoe button.theme-card.selected {
+    background-color: $t_accent_soft;
+    background-image: none;
+    border: 2px solid $t_accent;
+}
+
+window.barokey.tahoe button.radio-card.selected label.radio-title {
+    color: $t_accent;
+}
+
+window.barokey.tahoe button.radio-card.selected box.radio-ring {
+    border-color: $t_accent;
+}
+
+window.barokey.tahoe button.radio-card.selected box.radio-ring {
+    background-color: $t_accent;
+}
+
+window.barokey.tahoe box.radio-dot {
+    background-color: #ffffff;
+    min-width: 6px;
+    min-height: 6px;
+}
+
+window.barokey.tahoe switch {
+    min-width: 40px;
+    min-height: 24px;
+}
+
+window.barokey.tahoe switch > slider {
+    min-width: 20px;
+    min-height: 20px;
+    margin: 2px;
+}
+
+window.barokey.tahoe label.sidebar-section {
+    color: $t_muted;
+    font-size: 12px;
+    font-weight: 600;
+    margin: 0 28px 8px 28px;
+}
+
+window.barokey.tahoe label.center-title {
+    color: $t_text;
+    font-size: 13px;
+    font-weight: 600;
+    margin: 4px 0 0 0;
+}
+
+window.barokey.tahoe windowcontrols.trafficlights {
+    margin-right: 10px;
+}
+
+window.barokey.tahoe windowcontrols.trafficlights button {
+    min-width: 12px;
+    min-height: 12px;
+    padding: 0;
+    margin: 0 4px 0 0;
+    border-radius: 999px;
+    box-shadow: none;
+    background-image: none;
+}
+
+window.barokey.tahoe windowcontrols.trafficlights button.close {
+    background-color: #ff5f56;
+    border: 1px solid #e0443e;
+}
+
+window.barokey.tahoe windowcontrols.trafficlights button.minimize {
+    background-color: #ffbd2e;
+    border: 1px solid #dea123;
+}
+
+window.barokey.tahoe windowcontrols.trafficlights button.maximize {
+    background-color: #27c93f;
+    border: 1px solid #1aab29;
+}
+
+window.barokey.tahoe windowcontrols.trafficlights button image {
+    -gtk-icon-size: 8px;
+    color: rgba(0, 0, 0, 0.62);
+    opacity: 0;
+}
+
+window.barokey.tahoe windowcontrols.trafficlights:hover button image {
+    opacity: 1;
+}
+
+window.barokey.tahoe box.theme-preview {
+    border-radius: 16px;
+}
+
+window.barokey.tahoe box.toast-box {
+    background-color: $t_glass_hi;
+    border: 1px solid $t_edge;
+    border-radius: 999px;
+    box-shadow: 0 10px 30px $t_shadow;
+}
+
+window.barokey.tahoe label.toast {
+    color: $t_text;
+}
+"""
+)
+
+
 def asset_path(name: str) -> str:
     for base in (
         os.path.join(BASE_DIR, "desktop"),
@@ -1071,6 +1412,12 @@ def make_titlebar(title_widget: Gtk.Widget) -> Gtk.Widget:
     bar.add_css_class("titlebar-inner")
     bar.set_margin_start(16)
     bar.set_margin_end(8)
+    lights = Gtk.WindowControls(side=Gtk.PackType.START)
+    lights.set_decoration_layout("close,minimize,maximize:")
+    lights.add_css_class("trafficlights")
+    lights.set_valign(Gtk.Align.CENTER)
+    lights.set_visible(False)
+    bar.append(lights)
     title_widget.set_valign(Gtk.Align.CENTER)
     bar.append(title_widget)
     expand = Gtk.Box()
@@ -1081,6 +1428,8 @@ def make_titlebar(title_widget: Gtk.Widget) -> Gtk.Widget:
     controls.set_valign(Gtk.Align.CENTER)
     bar.append(controls)
     handle.set_child(bar)
+    handle.baro_lights = lights  # type: ignore[attr-defined]
+    handle.baro_controls = controls  # type: ignore[attr-defined]
     return handle
 
 
@@ -1144,7 +1493,7 @@ def set_radio_active(button: Gtk.Button, active: bool) -> None:
     if active:
         button.add_css_class("selected")
     else:
-        button.remove_css_class("active")
+        button.remove_css_class("selected")
 
 
 def option_card(
@@ -1408,6 +1757,7 @@ class SettingsWindow(Gtk.ApplicationWindow):
         self._method_cards: dict[str, Gtk.Button] = {}
         self._tone_cards: dict[str, Gtk.Button] = {}
         self._theme_cards: dict[str, Gtk.Button] = {}
+        self._style_cards: dict[str, Gtk.Button] = {}
         self._shortcut_caps: dict[str, Gtk.Box] = {}
         self._overview_shortcut_caps: dict[str, Gtk.Box] = {}
 
@@ -1416,8 +1766,21 @@ class SettingsWindow(Gtk.ApplicationWindow):
         self._build_layout()
         self._build_state_bindings()
         self._loading = False
+        self.apply_style_class()
         self._sync_widgets()
         self._show_page("overview")
+
+    def apply_style_class(self) -> None:
+        tahoe = self.config.get("ui_style") == "tahoe"
+        if tahoe:
+            self.add_css_class("tahoe")
+        else:
+            self.remove_css_class("tahoe")
+        # macOS puts close/minimize/maximize on the left as coloured dots.
+        self._titlebar.baro_lights.set_visible(tahoe)
+        self._titlebar.baro_controls.set_visible(not tahoe)
+        self.sidebar_section.set_visible(tahoe)
+        self.center_title.set_visible(tahoe)
 
     # ------------------------------------------------------------- title bar
     def _build_titlebar(self) -> None:
@@ -1427,7 +1790,8 @@ class SettingsWindow(Gtk.ApplicationWindow):
         title.append(logo)
         title.append(label(APP_NAME, "titlebar-name"))
         title.append(label("- Bộ gõ tiếng Việt cho Linux", "titlebar-sub"))
-        self.set_titlebar(make_titlebar(title))
+        self._titlebar = make_titlebar(title)
+        self.set_titlebar(self._titlebar)
 
     # ---------------------------------------------------------------- layout
     def _build_layout(self) -> None:
@@ -1450,6 +1814,10 @@ class SettingsWindow(Gtk.ApplicationWindow):
         brand_text.append(label("Bộ gõ tiếng Việt cho Linux", "brand-sub"))
         brand.append(brand_text)
         sidebar.append(brand)
+
+        self.sidebar_section = label("Cài đặt hệ thống", "sidebar-section")
+        self.sidebar_section.set_visible(False)
+        sidebar.append(self.sidebar_section)
 
         nav = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         nav.set_margin_start(12)
@@ -1538,6 +1906,10 @@ class SettingsWindow(Gtk.ApplicationWindow):
         self.toast.set_visible(False)
         overlay.add_overlay(self.toast)
 
+        self.center_title = label("", "center-title", xalign=0.5)
+        self.center_title.set_halign(Gtk.Align.CENTER)
+        self.center_title.set_visible(False)
+        main.append(self.center_title)
         main.append(overlay)
         outer.append(sidebar)
         outer.append(main)
@@ -2071,7 +2443,23 @@ class SettingsWindow(Gtk.ApplicationWindow):
             )
         )
 
+        style_heading = self._section_heading("Phong cách")
+        style_heading.set_margin_bottom(16)
+        page.append(style_heading)
+
+        style_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=16)
+        for value, title, description in UI_STYLES:
+            card, *_ = radio_card(
+                title, description, active=self.config.get("ui_style") == value
+            )
+            card.set_hexpand(True)
+            card.connect("clicked", self._on_style_clicked, value)
+            self._style_cards[value] = card
+            style_row.append(card)
+        page.append(style_row)
+
         theme_heading = self._section_heading("Chủ đề")
+        theme_heading.set_margin_top(32)
         theme_heading.set_margin_bottom(16)
         page.append(theme_heading)
 
@@ -2295,6 +2683,7 @@ class SettingsWindow(Gtk.ApplicationWindow):
         self._sync_method()
         self._sync_tone()
         self._sync_theme()
+        self._sync_style()
         self._refresh_status()
         self._refresh_quick_stats()
         self._refresh_shortcut_labels()
@@ -2314,6 +2703,10 @@ class SettingsWindow(Gtk.ApplicationWindow):
                 card.add_css_class("selected")
             else:
                 card.remove_css_class("selected")
+
+    def _sync_style(self) -> None:
+        for value, card in self._style_cards.items():
+            set_radio_active(card, value == self.config.get("ui_style"))
 
     def _refresh_status(self) -> None:
         enabled = bool(self.config["start_enabled"])
@@ -2388,6 +2781,9 @@ class SettingsWindow(Gtk.ApplicationWindow):
         if name not in self._pages:
             return
         self.stack.set_visible_child_name(name)
+        self.center_title.set_text(
+            next((text for key, text, _icon in NAV_ITEMS if key == name), "")
+        )
         for key, button in self._nav_buttons.items():
             if key == name:
                 button.add_css_class("current")
@@ -2476,6 +2872,16 @@ class SettingsWindow(Gtk.ApplicationWindow):
         self.app.apply_theme(theme)
         self._save("Đã đổi giao diện")
 
+    def _on_style_clicked(self, _button, value: str) -> None:
+        if self._loading:
+            return
+        self.config["ui_style"] = value
+        self._sync_style()
+        self.app.ui_style = value
+        self.app.apply_theme(self.config["theme"])
+        self.apply_style_class()
+        self._save("Đã đổi phong cách giao diện")
+
     def _open_uri(self, _button, uri: str) -> None:
         Gtk.show_uri(self, uri, Gdk.CURRENT_TIME)
 
@@ -2487,6 +2893,7 @@ class BaroKeyApp(Gtk.Application):
     def __init__(self):
         super().__init__(application_id=APP_ID)
         self.window = None
+        self.ui_style = "default"
         self.css_provider = Gtk.CssProvider()
         self._css_added = False
         self._interface_settings = None
@@ -2497,7 +2904,9 @@ class BaroKeyApp(Gtk.Application):
         GLib.set_application_name(APP_NAME)
         GLib.set_prgname(APP_ID)
         Gtk.Window.set_default_icon_name("barokey")
-        self.apply_theme(config.load().get("theme", "dark"))
+        saved = config.load()
+        self.ui_style = saved.get("ui_style", "default")
+        self.apply_theme(saved.get("theme", "dark"))
         try:
             self._interface_settings = Gio.Settings.new("org.gnome.desktop.interface")
             self._interface_settings.connect(
@@ -2528,7 +2937,11 @@ class BaroKeyApp(Gtk.Application):
         if gtk_settings is not None:
             gtk_settings.props.gtk_application_prefer_dark_theme = resolved == "dark"
         try:
-            self.css_provider.load_from_data(CSS.substitute(**palette).encode("utf-8"))
+            css = CSS.substitute(**palette)
+            if self.ui_style == "tahoe":
+                extra = TAHOE_DARK if resolved == "dark" else TAHOE_LIGHT
+                css += TAHOE_CSS.substitute(**palette, **extra)
+            self.css_provider.load_from_data(css.encode("utf-8"))
         except GLib.Error as error:
             print(f"BaroKey: CSS error: {error}", file=sys.stderr)
         display = Gdk.Display.get_default()
