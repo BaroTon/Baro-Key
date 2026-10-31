@@ -43,7 +43,8 @@ for size in 16 24 32 48 64 128 256 512; do
     install -m 644 "$ROOT_DIR/desktop/icons/barokey-$size.png" \
         "$DATA_HOME/icons/hicolor/${size}x${size}/apps/barokey.png"
 done
-install -m 644 "$ROOT_DIR/desktop/barokey.png" "$ROOT_DIR/desktop/barokey-mark.png" \
+install -m 644 "$ROOT_DIR/desktop/barokey.png" "$ROOT_DIR/desktop/barokey-notext.png" \
+    "$ROOT_DIR/desktop/barokey-mark.png" \
     "$ROOT_DIR/desktop/barokey-donate-qr.png" "$LIB_DIR/share/"
 rm -rf "$LIB_DIR/baro"
 cp -a "$ROOT_DIR/baro" "$LIB_DIR/"

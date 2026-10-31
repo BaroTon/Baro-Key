@@ -1301,7 +1301,10 @@ def asset_path(name: str) -> str:
 
 
 def logo_image(size: int) -> Gtk.Widget:
-    path = asset_path("barokey.png")
+    # The wordmark is unreadable below ~48 px, so small logos drop it.
+    path = asset_path("barokey-notext.png" if size <= 48 else "barokey.png") or asset_path(
+        "barokey.png"
+    )
     if path:
         image = Gtk.Image.new_from_file(path)
         image.set_pixel_size(size)
