@@ -114,7 +114,7 @@ PY
 
 echo
 echo "Xong. Chọn BARO bằng Super+Space, hoặc vào Settings → Keyboard → Input Sources."
-echo "Chuyển Việt/Anh trong BARO: Ctrl + \`"
+echo "Chuyển Việt/Anh trong BARO: Ctrl + Shift + V (hoặc Ctrl + \`)"
 if [ -n "${GTK_IM_MODULE:-}" ] && [ "${GTK_IM_MODULE}" = "fcitx" ]; then
     echo
     echo "Lưu ý: phiên hiện tại đang trỏ GTK/Qt sang Fcitx5, và Fcitx5 đang giữ tên D-Bus"

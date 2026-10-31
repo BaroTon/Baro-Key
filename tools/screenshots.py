@@ -1,0 +1,86 @@
+#!/usr/bin/env python3
+"""Render every BaroKey settings page to docs/screenshots/*.png.
+
+Runs the real GTK window and snapshots it with the GSK renderer, so it needs a
+graphical session but no screenshot tool. Uses a throw-away config directory.
+"""
+
+import importlib.machinery
+import importlib.util
+import os
+import sys
+import tempfile
+
+ROOT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+OUT = os.path.join(ROOT, "docs", "screenshots")
+os.environ["XDG_CONFIG_HOME"] = tempfile.mkdtemp(prefix="barokey-shots-")
+
+loader = importlib.machinery.SourceFileLoader(
+    "baro_settings", os.path.join(ROOT, "bin", "baro-settings")
+)
+spec = importlib.util.spec_from_loader("baro_settings", loader)
+app_mod = importlib.util.module_from_spec(spec)
+loader.exec_module(app_mod)
+
+from gi.repository import GLib, Gtk  # noqa: E402
+
+# (file name, page, theme)
+SHOTS = [
+    ("overview", "overview", "dark"),
+    ("method", "method", "dark"),
+    ("charset", "charset", "dark"),
+    ("options", "options", "dark"),
+    ("shortcuts", "shortcuts", "dark"),
+    ("appearance", "appearance", "dark"),
+    ("about", "about", "dark"),
+    ("overview-light", "overview", "light"),
+]
+
+
+def snapshot(window, path):
+    paintable = Gtk.WidgetPaintable.new(window)
+    snap = Gtk.Snapshot()
+    paintable.snapshot(snap, window.get_width(), window.get_height())
+    node = snap.to_node()
+    if node is None:
+        return False
+    texture = window.get_native().get_renderer().render_texture(node, None)
+    texture.save_to_png(path)
+    return True
+
+
+def run(app):
+    window = app.window
+    window.set_default_size(1024, 720)
+    queue = list(SHOTS)
+
+    def step():
+        if not queue:
+            app.quit()
+            return False
+        name, page, theme = queue.pop(0)
+        app.apply_theme(theme)
+        window._show_page(page)
+
+        def shoot():
+            if not snapshot(window, os.path.join(OUT, f"{name}.png")):
+                return True  # window not drawn yet, retry
+            print("saved", name, flush=True)
+            GLib.timeout_add(100, step)
+            return False
+
+        GLib.timeout_add(600, shoot)
+        return False
+
+    GLib.timeout_add(800, step)
+
+
+def main():
+    os.makedirs(OUT, exist_ok=True)
+    app = app_mod.BaroKeyApp()
+    app.connect_after("activate", run)
+    app.run([sys.argv[0]])
+
+
+if __name__ == "__main__":
+    main()
