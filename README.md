@@ -217,7 +217,9 @@ Cấu trúc:
 - Chỉ hỗ trợ bảng mã Unicode; TCVN3 và VNI Windows chưa có.
 - Kiểu hiển thị nhỏ gọn và phím tắt "Mở cài đặt" chưa hoạt động.
 - Telex và VNI chỉ chọn một kiểu tại một thời điểm, chưa gõ hỗn hợp.
-- Preedit hiển thị trong ô nhập; một số ứng dụng có thể vẽ gạch chân.
+- Từ đang gõ (preedit) hiển thị ngay trong ô nhập. BaroKey đã yêu cầu ứng dụng không gạch chân,
+  nhưng ứng dụng nào bỏ qua thuộc tính của IBus (một số app Electron, Chrome, Qt) vẫn có thể tự
+  gạch chân.
 
 ## Ghi nguồn
 

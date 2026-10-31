@@ -29,6 +29,7 @@ class FakeEngine(BaroEngine):
         self._mode_prop = None
         self.preedit = ""
         self.preedit_visible = False
+        self.preedit_attrs = None
         self.committed = []
 
     def _reload_config(self, force=False):
@@ -40,6 +41,7 @@ class FakeEngine(BaroEngine):
 
     def update_preedit_text(self, text, cursor, visible):
         self.preedit = text.get_text()
+        self.preedit_attrs = text.get_attributes()
         self.preedit_visible = visible
 
     def commit_text(self, text):
@@ -85,6 +87,17 @@ class EngineKeyEventTest(unittest.TestCase):
         engine.config["auto_restore"] = False
         engine.type_text("asd")
         self.assertEqual(engine.preedit, "ád")
+
+    def test_preedit_is_not_underlined(self):
+        engine = FakeEngine()
+        engine.type_text("vieejt")
+        attrs = engine.preedit_attrs
+        self.assertIsNotNone(attrs)
+        attr = attrs.get(0)
+        self.assertEqual(attr.get_attr_type(), IBus.AttrType.UNDERLINE)
+        self.assertEqual(attr.get_value(), IBus.AttrUnderline.NONE)
+        self.assertEqual(attr.get_start_index(), 0)
+        self.assertEqual(attr.get_end_index(), len(engine.preedit))
 
     def test_backspace_updates_preedit(self):
         engine = FakeEngine()
