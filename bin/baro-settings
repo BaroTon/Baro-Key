@@ -1499,6 +1499,22 @@ def set_radio_active(button: Gtk.Button, active: bool) -> None:
         button.remove_css_class("selected")
 
 
+def make_switch() -> Gtk.Switch:
+    """A Gtk.Switch without its internal on/off marks.
+
+    GTK 4.22 builds a 16 px GtkImage for each mark and then warns
+    "reported baselines of minimum -2147483648 ..." for every one on first
+    layout. BaroKey never shows the marks, so hide them.
+    """
+    switch = Gtk.Switch()
+    child = switch.get_first_child()
+    while child is not None:
+        if isinstance(child, Gtk.Image):
+            child.set_visible(False)
+        child = child.get_next_sibling()
+    return switch
+
+
 def option_card(
     title: str,
     subtitle: str,
@@ -1988,7 +2004,7 @@ class SettingsWindow(Gtk.ApplicationWindow):
         shell = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         shell.add_css_class("big-switch-shell")
         shell.set_valign(Gtk.Align.CENTER)
-        self.status_switch = Gtk.Switch()
+        self.status_switch = make_switch()
         self.status_switch.add_css_class("big")
         self.status_switch.set_valign(Gtk.Align.CENTER)
         shell.append(self.status_switch)
@@ -2299,7 +2315,7 @@ class SettingsWindow(Gtk.ApplicationWindow):
 
         options = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
 
-        self.free_marking_switch = Gtk.Switch()
+        self.free_marking_switch = make_switch()
         options.append(
             option_card(
                 "Bỏ dấu tự do",
@@ -2308,7 +2324,7 @@ class SettingsWindow(Gtk.ApplicationWindow):
             )
         )
 
-        self.go_tat_switch = Gtk.Switch()
+        self.go_tat_switch = make_switch()
         self.go_tat_switch.set_sensitive(False)
         options.append(
             option_card(
@@ -2319,7 +2335,7 @@ class SettingsWindow(Gtk.ApplicationWindow):
             )
         )
 
-        self.spell_check_switch = Gtk.Switch()
+        self.spell_check_switch = make_switch()
         self.spell_check_switch.set_sensitive(False)
         options.append(
             option_card(
@@ -2330,7 +2346,7 @@ class SettingsWindow(Gtk.ApplicationWindow):
             )
         )
 
-        self.auto_restore_switch = Gtk.Switch()
+        self.auto_restore_switch = make_switch()
         options.append(
             option_card(
                 "Khôi phục phím tiếng Anh",
@@ -2498,7 +2514,7 @@ class SettingsWindow(Gtk.ApplicationWindow):
         notif_heading.set_margin_bottom(16)
         page.append(notif_heading)
 
-        self.notifications_switch = Gtk.Switch()
+        self.notifications_switch = make_switch()
         page.append(
             option_card(
                 "Thông báo khi chuyển chế độ",
