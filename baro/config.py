@@ -51,11 +51,42 @@ BOOL_KEYS = (
 THEMES = {"auto", "light", "dark"}
 UI_STYLES = {"default", "tahoe"}
 
-_SHORTCUT_RE = re.compile(
-    r"^(?:(?:ctrl|alt|shift|super)\+)+(?:[a-z0-9]|grave|space|tab|return|"
-    r"backslash|bracketleft|bracketright|semicolon|apostrophe|comma|period|"
-    r"slash|minus|equal)$"
-)
+_SHORTCUT_MODIFIERS = ("ctrl", "alt", "shift", "super")
+_SHORTCUT_KEY_RE = re.compile(r"^[a-z0-9_]+$")
+_FUNCTION_KEY_RE = re.compile(r"^f([1-9]|[12][0-9]|3[0-5])$")
+# Keys that are modifiers themselves cannot end a combination.
+_MODIFIER_KEY_NAMES = {
+    "control_l", "control_r", "shift_l", "shift_r", "alt_l", "alt_r",
+    "super_l", "super_r", "meta_l", "meta_r", "hyper_l", "hyper_r",
+    "caps_lock", "num_lock", "iso_level3_shift", "iso_level5_shift",
+}
+
+
+def parse_shortcut_spec(spec: object):
+    """Split "ctrl+alt+k" into ({"ctrl", "alt"}, "k"), or None if invalid.
+
+    Any key may be used, as long as it cannot be mistaken for typing: it needs
+    Ctrl, Alt or Super held down, except the function keys F1-F35 which may be
+    used alone or with Shift.
+    """
+    if not isinstance(spec, str):
+        return None
+    parts = spec.strip().lower().split("+")
+    key = parts[-1]
+    mods = parts[:-1]
+    if len(set(mods)) != len(mods) or not set(mods) <= set(_SHORTCUT_MODIFIERS):
+        return None
+    if not _SHORTCUT_KEY_RE.match(key) or key in _MODIFIER_KEY_NAMES:
+        return None
+    if not _FUNCTION_KEY_RE.match(key) and not set(mods) & {"ctrl", "alt", "super"}:
+        return None
+    return set(mods), key
+
+
+def normalize_shortcut(spec: str) -> str:
+    """Canonical spelling: modifiers in a fixed order, everything lowercase."""
+    mods, key = parse_shortcut_spec(spec)  # type: ignore[misc]
+    return "+".join([m for m in _SHORTCUT_MODIFIERS if m in mods] + [key])
 
 
 def config_dir() -> str:
@@ -68,7 +99,7 @@ def config_path() -> str:
 
 
 def valid_shortcut(spec: object) -> bool:
-    return isinstance(spec, str) and bool(_SHORTCUT_RE.match(spec.lower()))
+    return parse_shortcut_spec(spec) is not None
 
 
 def load() -> dict:

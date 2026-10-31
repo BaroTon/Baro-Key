@@ -11,46 +11,68 @@ gi.require_version("IBus", "1.0")
 from gi.repository import IBus  # noqa: E402
 
 from . import bamboo, core, notify  # noqa: E402
-from .config import config_path, load, save  # noqa: E402
+from .config import config_path, load, parse_shortcut_spec, save  # noqa: E402
 
 ENGINE_NAME = "baro"
 BUS_NAME = "org.freedesktop.IBus.Baro"
 
-_SHORTCUT_KEYS = {
-    "grave": IBus.KEY_grave,
-    "space": IBus.KEY_space,
-    "tab": IBus.KEY_Tab,
-    "return": IBus.KEY_Return,
-    "backslash": ord("\\"),
-    "bracketleft": ord("["),
-    "bracketright": ord("]"),
-    "semicolon": ord(";"),
-    "apostrophe": ord("'"),
-    "comma": ord(","),
-    "period": ord("."),
-    "slash": ord("/"),
-    "minus": ord("-"),
-    "equal": ord("="),
+# Keys whose IBus name is not simply the lower-case spec name.
+_KEY_ALIASES = {
+    "backspace": "BackSpace",
+    "iso_left_tab": "ISO_Left_Tab",
 }
+
+# What Shift turns a US-layout key into, so that "ctrl+shift+1" still matches
+# when the client reports "exclam".
+_SHIFTED_US = {
+    ord("!"): ord("1"),
+    ord("@"): ord("2"),
+    ord("#"): ord("3"),
+    ord("$"): ord("4"),
+    ord("%"): ord("5"),
+    ord("^"): ord("6"),
+    ord("&"): ord("7"),
+    ord("*"): ord("8"),
+    ord("("): ord("9"),
+    ord(")"): ord("0"),
+    ord("_"): ord("-"),
+    ord("+"): ord("="),
+    ord("{"): ord("["),
+    ord("}"): ord("]"),
+    ord("|"): ord("\\"),
+    ord(":"): ord(";"),
+    ord('"'): ord("'"),
+    ord("<"): ord(","),
+    ord(">"): ord("."),
+    ord("?"): ord("/"),
+    ord("~"): ord("`"),
+}
+
+
+def key_to_keyval(name: str):
+    """IBus keyval for a lower-case key name such as "k", "f9" or "page_up"."""
+    name = name.lower()
+    candidates = [_KEY_ALIASES.get(name), name, name.capitalize(), name.upper()]
+    candidates.append("_".join(word.capitalize() for word in name.split("_")))
+    if name.startswith("kp_"):
+        candidates.append("KP_" + name[3:].capitalize())
+    for candidate in candidates:
+        if not candidate:
+            continue
+        keyval = IBus.keyval_from_name(candidate)
+        if keyval and keyval != IBus.KEY_VoidSymbol:
+            return int(keyval)
+    return None
 
 
 def parse_shortcut(spec: str):
     """Return (keyval, ctrl, shift, alt, super) or None for an invalid spec."""
-    try:
-        parts = spec.lower().replace(" ", "").split("+")
-    except AttributeError:
+    parsed = parse_shortcut_spec(spec)
+    if parsed is None:
         return None
-    if len(parts) < 2:
-        return None
-    key = parts[-1]
-    mods = set(parts[:-1])
-    if not mods or not mods <= {"ctrl", "shift", "alt", "super"}:
-        return None
-    if key in _SHORTCUT_KEYS:
-        keyval = _SHORTCUT_KEYS[key]
-    elif len(key) == 1 and (key.isalpha() or key.isdigit()):
-        keyval = ord(key)
-    else:
+    mods, key = parsed
+    keyval = key_to_keyval(key)
+    if keyval is None:
         return None
     return (
         keyval,
@@ -273,8 +295,11 @@ class BaroEngine(IBus.Engine):
         if parsed is None:
             return False
         expected, ctrl, shift, alt, super_key = parsed
-        if state & IBus.ModifierType.SHIFT_MASK and ord("A") <= keyval <= ord("Z"):
-            keyval += 32
+        if state & IBus.ModifierType.SHIFT_MASK:
+            if ord("A") <= keyval <= ord("Z"):
+                keyval += 32
+            else:
+                keyval = _SHIFTED_US.get(keyval, keyval)
         return (
             keyval == expected
             and bool(state & IBus.ModifierType.CONTROL_MASK) == ctrl

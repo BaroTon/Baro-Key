@@ -21,7 +21,7 @@ ENGINE = "baro"
 failures = 0
 
 
-def set_method(method: str) -> None:
+def set_config(**values) -> None:
     base = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
     path = base / "baro" / "settings.json"
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -29,8 +29,12 @@ def set_method(method: str) -> None:
         config = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         config = {}
-    config["method"] = method
+    config.update(values)
     path.write_text(json.dumps(config), encoding="utf-8")
+
+
+def set_method(method: str) -> None:
+    set_config(method=method)
 
 
 def pump(ms: int = 50) -> None:
@@ -97,6 +101,22 @@ class App:
             context.iteration(True)
         self.ic.process_key_event(keyval, 0, IBus.ModifierType.RELEASE_MASK)
         pump(40)
+        return replies[0] if replies else False
+
+    def combo(self, key, state: int) -> bool:
+        """Press a key with modifiers (a shortcut) and wait for the reply."""
+        keyval = IBus.unicode_to_keyval(key) if isinstance(key, str) else key
+        replies: list[bool] = []
+
+        def done(ic, result):
+            replies.append(ic.process_key_event_async_finish(result))
+
+        self.ic.process_key_event_async(keyval, 0, state, -1, None, done)
+        end = time.monotonic() + 5
+        context = GLib.MainContext.default()
+        while not replies and time.monotonic() < end:
+            context.iteration(True)
+        pump(150)
         return replies[0] if replies else False
 
     def type(self, text: str) -> None:
@@ -181,6 +201,39 @@ def main() -> int:
     app.type("aa dd ")
     check(app.commits == [], "password has no commits", app.commits)
     check(app.preedit == "", "password has no preedit", app.preedit)
+    app.close()
+
+    # Shortcuts can be any key combination, not just the built-in presets.
+    # Vietnamese mode turns "aa" into "â"; English mode leaves it alone.
+    set_config(
+        shortcut_toggle="ctrl+alt+k",
+        shortcut_enable="f9",
+        english_mode=False,
+        start_enabled=True,
+        method="telex",
+    )
+    ctrl_alt = IBus.ModifierType.CONTROL_MASK | IBus.ModifierType.MOD1_MASK
+    ctrl_shift = IBus.ModifierType.CONTROL_MASK | IBus.ModifierType.SHIFT_MASK
+
+    def types_vietnamese(label: str) -> bool:
+        app.reset()
+        app.commits.clear()
+        app.text = ""
+        app.type("aa ")
+        return app.text.startswith("â")
+
+    app = App(bus, "custom-shortcuts")
+    check(types_vietnamese("start"), "starts in Vietnamese mode", app.text)
+    check(app.combo("k", ctrl_alt), "ctrl+alt+k is consumed", None)
+    check(not types_vietnamese("ctrl+alt+k"), "ctrl+alt+k switches to English", app.text)
+    app.combo("k", ctrl_alt)
+    check(types_vietnamese("back"), "ctrl+alt+k switches back to Vietnamese", app.text)
+    check(app.combo(IBus.KEY_F9, 0), "F9 is consumed", None)
+    check(not types_vietnamese("f9"), "F9 turns the engine off", app.text)
+    app.combo(IBus.KEY_F9, 0)
+    check(types_vietnamese("f9 again"), "F9 turns the engine on again", app.text)
+    check(not app.combo("v", ctrl_shift), "old ctrl+shift+v is no longer bound", None)
+    check(types_vietnamese("unbound"), "old shortcut did not change the mode", app.text)
     app.close()
 
     if failures:
