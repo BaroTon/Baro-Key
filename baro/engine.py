@@ -533,15 +533,31 @@ class BaroEngine(IBus.Engine):
         self._clear_word()
         self.hide_preedit_text()
 
+    def _refresh_config(self) -> bool:
+        """Apply what the settings window saved, without waiting for focus-in.
+
+        Focus-in is not enough: after assigning a shortcut or changing the
+        typing method the user keeps typing in the same field, so the engine
+        would go on using the old settings until the focus moved.
+        """
+        if self._mtime() == self._config_mtime:
+            return False
+        self._flush()  # finish the word in progress with the old settings
+        self._reload_config()
+        self._enabled = bool(self.config.get("start_enabled", True))
+        self.vietnamese = not bool(self.config.get("english_mode", False))
+        self._update_mode_property()
+        self._sync_engine()
+        self._debug(
+            f"config reloaded: toggle={self.config.get('shortcut_toggle')!r} "
+            f"enable={self.config.get('shortcut_enable')!r}"
+        )
+        return True
+
     def do_focus_in(self):
         self._debug(f"focus-in  engine pid={os.getpid()}")
         self._reset_chord()
-        old_mtime = self._config_mtime
-        self._reload_config()
-        if self._config_mtime != old_mtime:
-            self._enabled = bool(self.config.get("start_enabled", True))
-            self.vietnamese = not bool(self.config.get("english_mode", False))
-            self._update_mode_property()
+        self._refresh_config()
         self._sync_engine()
         self._register_properties()
 
@@ -580,6 +596,7 @@ class BaroEngine(IBus.Engine):
             self._reset_chord()
             return False
 
+        self._refresh_config()
         self._debug_key(keyval, keycode, state)
         self._track_chord(keyval, state)
 

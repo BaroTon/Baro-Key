@@ -285,8 +285,12 @@ def main() -> int:
     app.close()
 
     # Modifier-only shortcut, as in EVKey: alt+shift fires when released.
-    set_config(shortcut_toggle="alt+shift", english_mode=False, start_enabled=True)
+    # The window is already focused when the shortcut is changed: the engine
+    # must pick the new setting up without a focus change.
     app = App(bus, "chord")
+    time.sleep(0.05)
+    set_config(shortcut_toggle="alt+shift", english_mode=False, start_enabled=True)
+    pump(100)
     mod1 = IBus.ModifierType.MOD1_MASK
     shift = IBus.ModifierType.SHIFT_MASK
     release = IBus.ModifierType.RELEASE_MASK
