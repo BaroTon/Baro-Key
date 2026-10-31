@@ -44,6 +44,7 @@ BaroKey lấy cảm hứng từ EVKey. Lõi chuyển đổi dùng
 **Giao diện và tiện ích**
 
 - Chuyển Việt/Anh và bật/tắt bộ gõ bằng phím tắt tuỳ chỉnh hoặc menu IBus
+- Thanh trên của GNOME hiển thị `VI` hoặc `EN` theo chế độ hiện tại của BaroKey
 - Thông báo khi chuyển chế độ
 - Cửa sổ cấu hình GTK4 có 7 trang, theme sáng / tối / tự động theo GNOME
 
