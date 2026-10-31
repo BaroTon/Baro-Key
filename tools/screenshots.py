@@ -24,16 +24,19 @@ loader.exec_module(app_mod)
 
 from gi.repository import Gio, GLib, Gtk  # noqa: E402
 
-# (file name, page, theme)
+# (file name, page, theme, style)
 SHOTS = [
-    ("overview", "overview", "dark"),
-    ("method", "method", "dark"),
-    ("charset", "charset", "dark"),
-    ("options", "options", "dark"),
-    ("shortcuts", "shortcuts", "dark"),
-    ("appearance", "appearance", "dark"),
-    ("about", "about", "dark"),
-    ("overview-light", "overview", "light"),
+    ("overview", "overview", "dark", "default"),
+    ("method", "method", "dark", "default"),
+    ("charset", "charset", "dark", "default"),
+    ("options", "options", "dark", "default"),
+    ("shortcuts", "shortcuts", "dark", "default"),
+    ("appearance", "appearance", "dark", "default"),
+    ("about", "about", "dark", "default"),
+    ("overview-light", "overview", "light", "default"),
+    ("tahoe-overview-light", "overview", "light", "tahoe"),
+    ("tahoe-overview-dark", "overview", "dark", "tahoe"),
+    ("tahoe-appearance-light", "appearance", "light", "tahoe"),
 ]
 
 
@@ -58,7 +61,13 @@ def run(app):
         if not queue:
             app.quit()
             return False
-        name, page, theme = queue.pop(0)
+        name, page, theme, style = queue.pop(0)
+        app.ui_style = style
+        window.config["ui_style"] = style
+        window.apply_style_class()
+        window._sync_style()
+        window.config["theme"] = theme
+        window._sync_theme()
         app.apply_theme(theme)
         window._show_page(page)
 

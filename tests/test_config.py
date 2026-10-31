@@ -35,6 +35,15 @@ class ConfigTests(unittest.TestCase):
         config.save(data)
         self.assertEqual(config.load(), data)
 
+    def test_ui_style_round_trip_and_fallback(self):
+        self.assertEqual(config.load()["ui_style"], "default")
+        data = dict(config.DEFAULTS, ui_style="tahoe")
+        config.save(data)
+        self.assertEqual(config.load()["ui_style"], "tahoe")
+        data["ui_style"] = "bogus"
+        config.save(data)
+        self.assertEqual(config.load()["ui_style"], "default")
+
     def test_invalid_values_fall_back(self):
         os.makedirs(config.config_dir(), exist_ok=True)
         with open(config.config_path(), "w", encoding="utf-8") as handle:
