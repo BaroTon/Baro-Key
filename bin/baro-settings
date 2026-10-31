@@ -1217,6 +1217,20 @@ window.barokey.tahoe switch > slider {
     margin: 2px;
 }
 
+window.barokey.tahoe label.sidebar-section {
+    color: $t_muted;
+    font-size: 12px;
+    font-weight: 600;
+    margin: 0 28px 8px 28px;
+}
+
+window.barokey.tahoe label.center-title {
+    color: $t_text;
+    font-size: 13px;
+    font-weight: 600;
+    margin: 4px 0 0 0;
+}
+
 window.barokey.tahoe windowcontrols.trafficlights {
     margin-right: 10px;
 }
@@ -1765,6 +1779,8 @@ class SettingsWindow(Gtk.ApplicationWindow):
         # macOS puts close/minimize/maximize on the left as coloured dots.
         self._titlebar.baro_lights.set_visible(tahoe)
         self._titlebar.baro_controls.set_visible(not tahoe)
+        self.sidebar_section.set_visible(tahoe)
+        self.center_title.set_visible(tahoe)
 
     # ------------------------------------------------------------- title bar
     def _build_titlebar(self) -> None:
@@ -1798,6 +1814,10 @@ class SettingsWindow(Gtk.ApplicationWindow):
         brand_text.append(label("Bộ gõ tiếng Việt cho Linux", "brand-sub"))
         brand.append(brand_text)
         sidebar.append(brand)
+
+        self.sidebar_section = label("Cài đặt hệ thống", "sidebar-section")
+        self.sidebar_section.set_visible(False)
+        sidebar.append(self.sidebar_section)
 
         nav = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         nav.set_margin_start(12)
@@ -1886,6 +1906,10 @@ class SettingsWindow(Gtk.ApplicationWindow):
         self.toast.set_visible(False)
         overlay.add_overlay(self.toast)
 
+        self.center_title = label("", "center-title", xalign=0.5)
+        self.center_title.set_halign(Gtk.Align.CENTER)
+        self.center_title.set_visible(False)
+        main.append(self.center_title)
         main.append(overlay)
         outer.append(sidebar)
         outer.append(main)
@@ -2757,6 +2781,9 @@ class SettingsWindow(Gtk.ApplicationWindow):
         if name not in self._pages:
             return
         self.stack.set_visible_child_name(name)
+        self.center_title.set_text(
+            next((text for key, text, _icon in NAV_ITEMS if key == name), "")
+        )
         for key, button in self._nav_buttons.items():
             if key == name:
                 button.add_css_class("current")
