@@ -65,12 +65,43 @@ def key_to_keyval(name: str):
     return None
 
 
+# Modifier keys that can form a modifier-only shortcut such as "alt+shift".
+_CHORD_MODS = {
+    IBus.KEY_Shift_L: "shift",
+    IBus.KEY_Shift_R: "shift",
+    IBus.KEY_Control_L: "ctrl",
+    IBus.KEY_Control_R: "ctrl",
+    IBus.KEY_Alt_L: "alt",
+    IBus.KEY_Alt_R: "alt",
+    IBus.KEY_Meta_L: "alt",
+    IBus.KEY_Meta_R: "alt",
+    IBus.KEY_Super_L: "super",
+    IBus.KEY_Super_R: "super",
+}
+_ANY_MODIFIER = (
+    IBus.ModifierType.CONTROL_MASK
+    | IBus.ModifierType.SHIFT_MASK
+    | IBus.ModifierType.MOD1_MASK
+    | IBus.ModifierType.SUPER_MASK
+)
+
+
+def parse_chord(spec: str):
+    """The modifiers of a modifier-only spec like "alt+shift", else None."""
+    parsed = parse_shortcut_spec(spec)
+    if parsed is None or parsed[1] is not None:
+        return None
+    return frozenset(parsed[0])
+
+
 def parse_shortcut(spec: str):
     """Return (keyval, ctrl, shift, alt, super) or None for an invalid spec."""
     parsed = parse_shortcut_spec(spec)
     if parsed is None:
         return None
     mods, key = parsed
+    if key is None:  # modifier-only: handled by parse_chord / _track_chord
+        return None
     keyval = key_to_keyval(key)
     if keyval is None:
         return None
@@ -315,6 +346,55 @@ class BaroEngine(IBus.Engine):
                 f"Nhấn {shortcut} để bật lại.",
             )
 
+    # Modifier-only shortcuts ("alt+shift", as in EVKey) fire when the modifiers
+    # are released, provided nothing else was pressed while they were down.
+    # Class-level defaults so the state exists before the first key event.
+    _chord_held: frozenset = frozenset()   # modifier keyvals currently down
+    _chord_peak: frozenset = frozenset()   # modifier names held at the same time
+    _chord_dirty = False                    # a normal key was pressed meanwhile
+    _chord_fired = False                    # already fired during this hold
+
+    def _reset_chord(self) -> None:
+        self._chord_held = frozenset()
+        self._chord_peak = frozenset()
+        self._chord_dirty = False
+        self._chord_fired = False
+
+    def _track_chord(self, keyval, state) -> None:
+        released = bool(state & IBus.ModifierType.RELEASE_MASK)
+        mod = _CHORD_MODS.get(keyval)
+        if mod is None:
+            if not released and self._chord_held:
+                if state & _ANY_MODIFIER:
+                    self._chord_dirty = True
+                else:
+                    # No modifier is really down: a release event was lost.
+                    self._reset_chord()
+            return
+        if not released:
+            self._chord_held = self._chord_held | {keyval}
+            self._chord_peak = self._chord_peak | {mod}
+            return
+        if self._chord_held and not self._chord_dirty and not self._chord_fired:
+            self._chord_fired = self._run_chord(self._chord_peak)
+        self._chord_held = self._chord_held - {keyval}
+        if not self._chord_held:
+            self._reset_chord()
+
+    def _run_chord(self, peak) -> bool:
+        """Run the action bound to exactly these modifiers; True if one ran."""
+        if peak and peak == parse_chord(
+            self.config.get("shortcut_enable", "ctrl+shift+b")
+        ):
+            self._toggle_enabled()
+            return True
+        if peak and peak == parse_chord(
+            self.config.get("shortcut_toggle", "ctrl+shift+v")
+        ):
+            self._toggle()
+            return True
+        return False
+
     def _matches_shortcut(self, keyval, state, spec: str) -> bool:
         parsed = parse_shortcut(spec)
         if parsed is None:
@@ -393,6 +473,7 @@ class BaroEngine(IBus.Engine):
         self.hide_preedit_text()
 
     def do_focus_in(self):
+        self._reset_chord()
         old_mtime = self._config_mtime
         self._reload_config()
         if self._config_mtime != old_mtime:
@@ -403,9 +484,11 @@ class BaroEngine(IBus.Engine):
         self._register_properties()
 
     def do_focus_out(self):
+        self._reset_chord()
         self._flush()
 
     def do_reset(self):
+        self._reset_chord()
         self._clear_word()
         self.hide_preedit_text()
 
@@ -432,7 +515,10 @@ class BaroEngine(IBus.Engine):
         if self._is_password():
             self._clear_word()
             self.hide_preedit_text()
+            self._reset_chord()
             return False
+
+        self._track_chord(keyval, state)
 
         if state & IBus.ModifierType.RELEASE_MASK:
             return False

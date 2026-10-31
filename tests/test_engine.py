@@ -142,6 +142,115 @@ class ShortcutMatchTest(unittest.TestCase):
         self.assertEqual(toggled, [True])
 
 
+class ModifierChordTest(unittest.TestCase):
+    """Modifier-only shortcuts such as alt+shift, which fire on release."""
+
+    ALT = int(IBus.ModifierType.MOD1_MASK)
+    SHIFT = int(IBus.ModifierType.SHIFT_MASK)
+    CTRL = int(IBus.ModifierType.CONTROL_MASK)
+    REL = int(IBus.ModifierType.RELEASE_MASK)
+
+    def make(self, toggle="alt+shift", enable="ctrl+alt"):
+        engine = FakeEngine()
+        engine.config["shortcut_toggle"] = toggle
+        engine.config["shortcut_enable"] = enable
+        engine.calls = []
+        engine._toggle = lambda: engine.calls.append("toggle")
+        engine._toggle_enabled = lambda: engine.calls.append("enable")
+        return engine
+
+    def test_alt_shift_fires_once_on_release(self):
+        engine = self.make()
+        engine.do_process_key_event(IBus.KEY_Alt_L, 0, 0)
+        engine.do_process_key_event(IBus.KEY_Shift_L, 0, self.ALT)
+        self.assertEqual(engine.calls, [], "nothing fires while keys are down")
+        engine.do_process_key_event(IBus.KEY_Shift_L, 0, self.REL | self.ALT | self.SHIFT)
+        self.assertEqual(engine.calls, ["toggle"])
+        engine.do_process_key_event(IBus.KEY_Alt_L, 0, self.REL | self.ALT)
+        self.assertEqual(engine.calls, ["toggle"], "second release must not fire again")
+
+    def test_order_of_pressing_does_not_matter(self):
+        engine = self.make()
+        engine.do_process_key_event(IBus.KEY_Shift_R, 0, 0)
+        engine.do_process_key_event(IBus.KEY_Alt_R, 0, self.SHIFT)
+        engine.do_process_key_event(IBus.KEY_Shift_R, 0, self.REL | self.SHIFT | self.ALT)
+        engine.do_process_key_event(IBus.KEY_Alt_R, 0, self.REL | self.ALT)
+        self.assertEqual(engine.calls, ["toggle"])
+
+    def test_another_key_in_between_cancels_it(self):
+        engine = self.make()
+        engine.do_process_key_event(IBus.KEY_Alt_L, 0, 0)
+        engine.do_process_key_event(IBus.KEY_Shift_L, 0, self.ALT)
+        engine.do_process_key_event(IBus.KEY_Tab, 0, self.ALT | self.SHIFT)
+        engine.do_process_key_event(IBus.KEY_Shift_L, 0, self.REL | self.ALT | self.SHIFT)
+        engine.do_process_key_event(IBus.KEY_Alt_L, 0, self.REL | self.ALT)
+        self.assertEqual(engine.calls, [])
+
+    def test_a_single_modifier_does_nothing(self):
+        engine = self.make()
+        engine.do_process_key_event(IBus.KEY_Alt_L, 0, 0)
+        engine.do_process_key_event(IBus.KEY_Alt_L, 0, self.REL | self.ALT)
+        self.assertEqual(engine.calls, [])
+
+    def test_extra_modifier_is_a_different_chord(self):
+        engine = self.make()
+        for keyval, state in (
+            (IBus.KEY_Control_L, 0),
+            (IBus.KEY_Alt_L, self.CTRL),
+            (IBus.KEY_Shift_L, self.CTRL | self.ALT),
+        ):
+            engine.do_process_key_event(keyval, 0, state)
+        for keyval in (IBus.KEY_Shift_L, IBus.KEY_Alt_L, IBus.KEY_Control_L):
+            engine.do_process_key_event(keyval, 0, self.REL)
+        self.assertEqual(engine.calls, [])
+
+    def test_can_fire_again_after_everything_is_released(self):
+        engine = self.make()
+        for _ in range(2):
+            engine.do_process_key_event(IBus.KEY_Alt_L, 0, 0)
+            engine.do_process_key_event(IBus.KEY_Shift_L, 0, self.ALT)
+            engine.do_process_key_event(IBus.KEY_Shift_L, 0, self.REL | self.ALT | self.SHIFT)
+            engine.do_process_key_event(IBus.KEY_Alt_L, 0, self.REL | self.ALT)
+        self.assertEqual(engine.calls, ["toggle", "toggle"])
+
+    def test_second_binding_uses_the_enable_action(self):
+        engine = self.make()
+        engine.do_process_key_event(IBus.KEY_Control_L, 0, 0)
+        engine.do_process_key_event(IBus.KEY_Alt_L, 0, self.CTRL)
+        engine.do_process_key_event(IBus.KEY_Alt_L, 0, self.REL | self.CTRL | self.ALT)
+        engine.do_process_key_event(IBus.KEY_Control_L, 0, self.REL | self.CTRL)
+        self.assertEqual(engine.calls, ["enable"])
+
+    def test_modifier_events_are_never_consumed(self):
+        engine = self.make()
+        self.assertFalse(engine.do_process_key_event(IBus.KEY_Alt_L, 0, 0))
+        self.assertFalse(engine.do_process_key_event(IBus.KEY_Shift_L, 0, self.ALT))
+        self.assertFalse(
+            engine.do_process_key_event(IBus.KEY_Shift_L, 0, self.REL | self.ALT | self.SHIFT)
+        )
+
+    def test_a_lost_release_does_not_leave_stale_state(self):
+        engine = self.make()
+        engine.do_process_key_event(IBus.KEY_Alt_L, 0, 0)  # its release never arrives
+        engine.do_process_key_event(IBus.KEY_a, 0, 0)  # plain key: no modifier is down
+        engine.do_process_key_event(IBus.KEY_Shift_L, 0, 0)
+        engine.do_process_key_event(IBus.KEY_Shift_L, 0, self.REL | self.SHIFT)
+        self.assertEqual(engine.calls, [])
+
+    def test_focus_change_forgets_held_modifiers(self):
+        engine = self.make()
+        engine.do_process_key_event(IBus.KEY_Alt_L, 0, 0)
+        engine.do_process_key_event(IBus.KEY_Shift_L, 0, self.ALT)
+        engine._reset_chord()
+        engine.do_process_key_event(IBus.KEY_Shift_L, 0, self.REL | self.ALT | self.SHIFT)
+        self.assertEqual(engine.calls, [])
+
+    def test_key_combinations_still_work_next_to_chords(self):
+        engine = self.make(toggle="ctrl+alt+k")
+        engine.do_process_key_event(IBus.KEY_k, 0, self.CTRL | self.ALT)
+        self.assertEqual(engine.calls, ["toggle"])
+
+
 class EngineKeyEventTest(unittest.TestCase):
     def test_telex_word_committed_on_space(self):
         engine = FakeEngine()
