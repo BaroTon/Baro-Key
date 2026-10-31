@@ -1944,6 +1944,7 @@ class SettingsWindow(Gtk.ApplicationWindow):
 
         self.app = app
         self.config = config.load()
+        self._synced = dict(self.config)  # what is on disk as far as we know
         self._loading = True
         self._toast_timer = None
         self._nav_buttons: dict[str, Gtk.Button] = {}
@@ -1962,6 +1963,7 @@ class SettingsWindow(Gtk.ApplicationWindow):
         self._loading = False
         self.apply_style_class()
         self._sync_widgets()
+        self.connect("notify::is-active", self._on_active_changed)
         self._show_page("overview")
 
     def apply_style_class(self) -> None:
@@ -2951,10 +2953,28 @@ class SettingsWindow(Gtk.ApplicationWindow):
             fill_keycaps(caps, self.config[key])
 
     def _save(self, message: str | None = None) -> None:
-        config.save(self.config)
+        # The IBus engine also writes this file (english_mode, start_enabled), so
+        # write only what changed here instead of our whole, possibly stale, copy.
+        merged = config.apply_changes(config.load(), self.config, self._synced)
+        config.save(merged)
+        self.config = merged
+        self._synced = dict(merged)
         self._refresh_quick_stats()
         if message:
             self._show_toast(message)
+
+    def _reload_from_disk(self) -> None:
+        """Pick up changes made by the engine, e.g. a Việt / Anh toggle."""
+        fresh = config.load()
+        if fresh == self.config and fresh == self._synced:
+            return
+        self.config = fresh
+        self._synced = dict(fresh)
+        self._sync_widgets()
+
+    def _on_active_changed(self, window, _pspec) -> None:
+        if window.is_active():
+            self._reload_from_disk()
 
     def _show_toast(self, message: str) -> None:
         self.toast_label.set_text(message)

@@ -68,6 +68,25 @@ class ConfigTests(unittest.TestCase):
         config.save(dict(config.DEFAULTS, shortcut_toggle="alt+shift"))
         self.assertEqual(config.load()["shortcut_toggle"], "alt+shift")
 
+    def test_apply_changes_keeps_what_the_engine_changed(self):
+        synced = dict(config.DEFAULTS)  # what the settings window last saw
+        on_disk = dict(synced, english_mode=True, start_enabled=False)  # engine wrote
+        current = dict(synced, shortcut_toggle="alt+shift")  # user changed this only
+        merged = config.apply_changes(on_disk, current, synced)
+        self.assertEqual(merged["shortcut_toggle"], "alt+shift")
+        self.assertTrue(merged["english_mode"])
+        self.assertFalse(merged["start_enabled"])
+
+    def test_apply_changes_lets_the_user_override_the_engine(self):
+        # The window saw English mode, and the user turned the engine off, which
+        # also clears english_mode: both are real changes and must be written.
+        synced = dict(config.DEFAULTS, english_mode=True)
+        on_disk = dict(synced)
+        current = dict(synced, english_mode=False, start_enabled=False)
+        merged = config.apply_changes(on_disk, current, synced)
+        self.assertFalse(merged["english_mode"])
+        self.assertFalse(merged["start_enabled"])
+
     def test_shortcut_is_normalized(self):
         self.assertEqual(config.normalize_shortcut("Shift+CTRL+V"), "ctrl+shift+v")
         self.assertEqual(config.normalize_shortcut("F9"), "f9")
