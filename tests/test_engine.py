@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import tempfile
 import unittest
 
 import gi
@@ -34,6 +36,9 @@ class FakeEngine(BaroEngine):
 
     def _reload_config(self, force=False):
         pass
+
+    def _mtime(self):
+        return self._config_mtime  # never reads the real settings file
 
     def hide_preedit_text(self):
         self.preedit = ""
@@ -249,6 +254,156 @@ class ModifierChordTest(unittest.TestCase):
         engine = self.make(toggle="ctrl+alt+k")
         engine.do_process_key_event(IBus.KEY_k, 0, self.CTRL | self.ALT)
         self.assertEqual(engine.calls, ["toggle"])
+
+
+class LiveConfigReloadTest(unittest.TestCase):
+    """Settings saved by the settings window apply to the next key, with no
+    focus change in between."""
+
+    def setUp(self):
+        from baro import config as cfg
+
+        self.cfg = cfg
+        self.temp = tempfile.TemporaryDirectory()
+        self.old_home = os.environ.get("XDG_CONFIG_HOME")
+        os.environ["XDG_CONFIG_HOME"] = self.temp.name
+        cfg.save(dict(cfg.DEFAULTS))
+        self.mtime = 1_000_000_000.0
+        os.utime(cfg.config_path(), (self.mtime, self.mtime))
+
+        class Engine(FakeEngine):
+            _mtime = BaroEngine._mtime
+            _reload_config = BaroEngine._reload_config
+
+        self.engine = Engine()
+        self.engine.config = cfg.load()
+        self.engine._config_mtime = self.engine._mtime()
+        self.engine.synced = 0
+        self.engine._sync_engine = lambda: setattr(
+            self.engine, "synced", self.engine.synced + 1
+        )
+        self.engine.calls = []
+        self.engine._toggle = lambda: self.engine.calls.append("toggle")
+
+    def tearDown(self):
+        if self.old_home is None:
+            os.environ.pop("XDG_CONFIG_HOME", None)
+        else:
+            os.environ["XDG_CONFIG_HOME"] = self.old_home
+        self.temp.cleanup()
+
+    def write(self, **values):
+        data = self.cfg.load()
+        data.update(values)
+        self.cfg.save(data)
+        self.mtime += 5  # a distinct modification time, whatever the file system
+        os.utime(self.cfg.config_path(), (self.mtime, self.mtime))
+
+    def test_a_new_shortcut_works_without_a_focus_change(self):
+        ALT = int(IBus.ModifierType.MOD1_MASK)
+        REL = int(IBus.ModifierType.RELEASE_MASK)
+        SHIFT = int(IBus.ModifierType.SHIFT_MASK)
+        self.write(shortcut_toggle="alt+shift")
+        self.engine.do_process_key_event(IBus.KEY_Alt_L, 0, 0)
+        self.engine.do_process_key_event(IBus.KEY_Shift_L, 0, ALT)
+        self.engine.do_process_key_event(IBus.KEY_Shift_L, 0, REL | ALT | SHIFT)
+        self.engine.do_process_key_event(IBus.KEY_Alt_L, 0, REL | ALT)
+        self.assertEqual(self.engine.calls, ["toggle"])
+
+    def test_the_old_shortcut_stops_working(self):
+        CTRL = int(IBus.ModifierType.CONTROL_MASK)
+        SHIFT = int(IBus.ModifierType.SHIFT_MASK)
+        self.write(shortcut_toggle="alt+z")
+        self.engine.do_process_key_event(IBus.KEY_V, 0, CTRL | SHIFT)
+        self.assertEqual(self.engine.calls, [])
+
+    def test_mode_changes_in_the_file_are_picked_up(self):
+        self.write(english_mode=True, start_enabled=False)
+        self.engine.do_process_key_event(IBus.KEY_a, 0, 0)
+        self.assertFalse(self.engine.vietnamese)
+        self.assertFalse(self.engine._enabled)
+
+    def test_typing_options_are_resynced_once(self):
+        self.write(method="vni")
+        self.engine.do_process_key_event(IBus.KEY_a, 0, 0)
+        self.engine.do_process_key_event(IBus.KEY_a, 0, 0)
+        self.assertEqual(self.engine.synced, 1)
+
+    def test_unchanged_file_is_not_reloaded(self):
+        self.engine.do_process_key_event(IBus.KEY_a, 0, 0)
+        self.assertEqual(self.engine.synced, 0)
+
+    def test_the_word_in_progress_is_not_lost(self):
+        self.engine.type_text("aa")
+        self.write(shortcut_toggle="alt+z")
+        self.engine.do_process_key_event(IBus.KEY_x, 0, 0)
+        self.assertEqual(self.engine.committed[:1], ["â"])
+
+
+class KeyDebugLogTest(unittest.TestCase):
+    """The shortcut diagnostics must never record what the user types."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.old_cache = os.environ.get("XDG_CACHE_HOME")
+        os.environ["XDG_CACHE_HOME"] = self.temp.name
+        self.dir = os.path.join(self.temp.name, "baro")
+        self.flag = os.path.join(self.dir, "debug-keys")
+        self.log = os.path.join(self.dir, "keys.log")
+
+    def tearDown(self):
+        if self.old_cache is None:
+            os.environ.pop("XDG_CACHE_HOME", None)
+        else:
+            os.environ["XDG_CACHE_HOME"] = self.old_cache
+        self.temp.cleanup()
+
+    def enable(self):
+        os.makedirs(self.dir, exist_ok=True)
+        open(self.flag, "w").close()
+
+    def read(self):
+        try:
+            with open(self.log, encoding="utf-8") as handle:
+                return handle.read()
+        except OSError:
+            return ""
+
+    def test_nothing_is_written_without_the_flag_file(self):
+        engine = FakeEngine()
+        engine.do_process_key_event(IBus.KEY_Alt_L, 0, 0)
+        engine.do_process_key_event(IBus.KEY_F9, 0, 0)
+        self.assertFalse(os.path.exists(self.log))
+
+    def test_modifiers_combos_and_function_keys_are_logged(self):
+        self.enable()
+        engine = FakeEngine()
+        engine.config["shortcut_toggle"] = "ctrl+shift+v"
+        engine.do_process_key_event(IBus.KEY_Alt_L, 38, 0)
+        engine.do_process_key_event(IBus.KEY_Shift_L, 50, int(IBus.ModifierType.MOD1_MASK))
+        engine.do_process_key_event(
+            IBus.KEY_s, 39, int(IBus.ModifierType.MOD1_MASK | IBus.ModifierType.SHIFT_MASK)
+        )
+        engine.do_process_key_event(IBus.KEY_F9, 75, 0)
+        text = self.read()
+        for expected in ("Alt_L", "Shift_L", " s ", "F9", "keycode=39", "state=0x9"):
+            self.assertIn(expected, text)
+        self.assertIn("toggle='ctrl+shift+v'", text)
+
+    def test_ordinary_typing_is_never_logged(self):
+        self.enable()
+        engine = FakeEngine()
+        engine.type_text("matkhau123")
+        engine.do_process_key_event(IBus.KEY_A, 0, int(IBus.ModifierType.SHIFT_MASK))
+        self.assertEqual(self.read(), "", "typed text must not reach the log")
+
+    def test_actions_are_logged(self):
+        self.enable()
+        engine = FakeEngine()
+        engine.config["shortcut_toggle"] = "f9"
+        engine._toggle_mode = lambda: None
+        engine.do_process_key_event(IBus.KEY_F9, 75, 0)
+        self.assertIn("ACTION  switch Vietnamese / English", self.read())
 
 
 class EngineKeyEventTest(unittest.TestCase):

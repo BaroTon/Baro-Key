@@ -193,6 +193,20 @@ Phiên bản, liên kết GitHub, báo lỗi và đóng góp cho dự án.
 
 <p align="center"><img src="docs/screenshots/about.png" alt="Thông tin" width="760"></p>
 
+## Gỡ lỗi phím tắt
+
+Nếu phím tắt không có tác dụng, bật nhật ký phím để xem engine nhận được gì:
+
+```bash
+mkdir -p ~/.cache/baro && touch ~/.cache/baro/debug-keys   # bật
+cat ~/.cache/baro/keys.log                                  # xem
+rm ~/.cache/baro/debug-keys                                 # tắt
+```
+
+Nhật ký chỉ ghi phím bổ trợ (Ctrl, Alt, Shift, Super), phím bấm cùng Ctrl/Alt/Super và phím F, kèm
+mã phím, trạng thái bổ trợ và phím tắt đang cài. **Không ghi chữ bạn gõ.** Mỗi dòng `ACTION` là một
+lần engine đổi chế độ.
+
 ## Gỡ cài đặt
 
 ```bash
