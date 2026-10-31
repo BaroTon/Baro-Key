@@ -68,10 +68,18 @@ def parse_shortcut_spec(spec: object):
     Any key may be used, as long as it cannot be mistaken for typing: it needs
     Ctrl, Alt or Super held down, except the function keys F1-F35 which may be
     used alone or with Shift.
+
+    A combination of two or more modifiers alone ("alt+shift", as in EVKey) is
+    also valid and gives ({"alt", "shift"}, None): it fires when the modifiers
+    are released without another key having been pressed.
     """
     if not isinstance(spec, str):
         return None
     parts = spec.strip().lower().split("+")
+    if all(part in _SHORTCUT_MODIFIERS for part in parts):
+        if len(parts) >= 2 and len(set(parts)) == len(parts):
+            return set(parts), None
+        return None
     key = parts[-1]
     mods = parts[:-1]
     if len(set(mods)) != len(mods) or not set(mods) <= set(_SHORTCUT_MODIFIERS):
@@ -86,7 +94,8 @@ def parse_shortcut_spec(spec: object):
 def normalize_shortcut(spec: str) -> str:
     """Canonical spelling: modifiers in a fixed order, everything lowercase."""
     mods, key = parse_shortcut_spec(spec)  # type: ignore[misc]
-    return "+".join([m for m in _SHORTCUT_MODIFIERS if m in mods] + [key])
+    ordered = [m for m in _SHORTCUT_MODIFIERS if m in mods]
+    return "+".join(ordered + ([key] if key else []))
 
 
 def config_dir() -> str:

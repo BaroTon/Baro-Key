@@ -67,7 +67,7 @@ def run(app):
         app.apply_theme("dark")
         dialog = app_mod.ShortcutDialog(
             window, "Chuyển đổi Việt / Anh", app_mod.SHORTCUT_PRESETS["toggle"],
-            "ctrl+alt+k", "ctrl+shift+v", "ctrl+shift+b", "Bật / Tắt bộ gõ", lambda _s: None,
+            "alt+shift", "ctrl+shift+v", "ctrl+shift+b", "Bật / Tắt bộ gõ", lambda _s: None,
         )
         dialog.present()
 

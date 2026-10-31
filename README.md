@@ -144,15 +144,23 @@ Hiện dùng **Unicode**. TCVN3 và VNI Windows hiển thị để tham khảo n
 ### Phím tắt
 
 Bấm **Thay đổi** rồi **nhấn tổ hợp phím bạn muốn** để gán cho phím chuyển Việt/Anh và phím
-bật/tắt bộ gõ. Có thể dùng bất kỳ phím nào, miễn là có Ctrl, Alt hoặc Super đi kèm
-(ví dụ `Ctrl + Alt + K`, `Super + Space`, `Ctrl + Shift + 1`); riêng các phím `F1`–`F35` dùng được
-một mình. Hộp thoại báo lỗi nếu tổ hợp không hợp lệ hoặc trùng với phím tắt còn lại, có nút
-**Mặc định** để quay về ban đầu và vài gợi ý nhanh.
+bật/tắt bộ gõ. Có hai kiểu:
+
+- **Phím kèm Ctrl, Alt hoặc Super**, ví dụ `Ctrl + Alt + K`, `Super + Space`,
+  `Ctrl + Shift + 1`. Riêng các phím `F1`–`F35` dùng được một mình.
+- **Chỉ gồm phím bổ trợ, giống EVKey**, ví dụ `Alt + Shift` hoặc `Ctrl + Shift`: giữ hai phím rồi
+  nhả. Chế độ chỉ đổi khi bạn nhả mà không bấm phím nào khác trong lúc giữ, nên `Ctrl + Shift + V`
+  (dán) hay `Alt + Shift + Tab` không làm đổi chế độ. Cần ít nhất hai phím bổ trợ khác nhau; một
+  phím bổ trợ đứng một mình không dùng được.
+
+Hộp thoại báo lỗi nếu tổ hợp không hợp lệ hoặc trùng với phím tắt còn lại, có nút **Mặc định**
+để quay về ban đầu và vài gợi ý nhanh.
 
 <p align="center"><img src="docs/screenshots/shortcut-dialog.png" alt="Gán phím tắt tự do" width="420"></p>
 
 Lưu ý: `Ctrl + Shift + V` (mặc định) là phím dán trong terminal. Nếu hay dán trong terminal, hãy đổi
-sang tổ hợp khác. Phím có Shift như `Ctrl + Shift + 1` được so khớp theo bố cục bàn phím US.
+sang tổ hợp khác. Phím có Shift như `Ctrl + Shift + 1` được so khớp theo bố cục bàn phím US. Nếu
+phiên GNOME của bạn đã dùng `Alt + Shift` để đổi bố cục bàn phím, hai chức năng sẽ cùng chạy.
 
 <p align="center"><img src="docs/screenshots/shortcuts.png" alt="Phím tắt" width="760"></p>
 

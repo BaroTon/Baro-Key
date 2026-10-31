@@ -57,6 +57,17 @@ class ConfigTests(unittest.TestCase):
         ):
             self.assertFalse(config.valid_shortcut(bad), bad)
 
+    def test_modifier_only_shortcuts(self):
+        for good in ("alt+shift", "shift+alt", "ctrl+shift", "ctrl+alt", "ctrl+alt+shift"):
+            self.assertTrue(config.valid_shortcut(good), good)
+        for bad in ("alt", "shift", "super", "ctrl", "alt+alt", ""):
+            self.assertFalse(config.valid_shortcut(bad), bad)
+        self.assertEqual(config.normalize_shortcut("shift+alt"), "alt+shift")
+
+    def test_modifier_only_shortcut_round_trip(self):
+        config.save(dict(config.DEFAULTS, shortcut_toggle="alt+shift"))
+        self.assertEqual(config.load()["shortcut_toggle"], "alt+shift")
+
     def test_shortcut_is_normalized(self):
         self.assertEqual(config.normalize_shortcut("Shift+CTRL+V"), "ctrl+shift+v")
         self.assertEqual(config.normalize_shortcut("F9"), "f9")

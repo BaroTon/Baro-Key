@@ -284,6 +284,30 @@ def main() -> int:
     check(types_vietnamese("unbound"), "old shortcut did not change the mode", app.text)
     app.close()
 
+    # Modifier-only shortcut, as in EVKey: alt+shift fires when released.
+    set_config(shortcut_toggle="alt+shift", english_mode=False, start_enabled=True)
+    app = App(bus, "chord")
+    mod1 = IBus.ModifierType.MOD1_MASK
+    shift = IBus.ModifierType.SHIFT_MASK
+    release = IBus.ModifierType.RELEASE_MASK
+
+    def alt_shift(extra_key=None) -> None:
+        app.combo(IBus.KEY_Alt_L, 0)
+        app.combo(IBus.KEY_Shift_L, mod1)
+        if extra_key is not None:
+            app.combo(extra_key, mod1 | shift)
+        app.combo(IBus.KEY_Shift_L, release | mod1 | shift)
+        app.combo(IBus.KEY_Alt_L, release | mod1)
+
+    check(types_vietnamese("chord start"), "chord: starts in Vietnamese", app.text)
+    alt_shift()
+    check(not types_vietnamese("alt+shift"), "alt+shift switches to English", app.text)
+    alt_shift()
+    check(types_vietnamese("alt+shift back"), "alt+shift switches back", app.text)
+    alt_shift(IBus.KEY_Tab)
+    check(types_vietnamese("alt+shift+tab"), "alt+shift+Tab does not switch", app.text)
+    app.close()
+
     if failures:
         print(f"{failures} check(s) failed")
         return 1

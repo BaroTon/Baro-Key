@@ -44,6 +44,8 @@ SHORTCUT_PRESETS = {
         ("ctrl+shift+v", "Ctrl + Shift + V"),
         ("ctrl+grave", "Ctrl + `"),
         ("alt+z", "Alt + Z"),
+        ("alt+shift", "Alt + Shift"),
+        ("ctrl+shift", "Ctrl + Shift"),
     ),
     "enable": (
         ("ctrl+shift+b", "Ctrl + Shift + B"),
@@ -555,6 +557,13 @@ box.keycap.large label.keycap {
 label.key-plus {
     color: $subtle;
     font-size: 11px;
+}
+
+flowboxchild {
+    background-color: transparent;
+    padding: 0;
+    border: none;
+    outline: none;
 }
 
 box.key-capture {
@@ -1607,6 +1616,14 @@ _MODIFIER_KEYVALS = {
     Gdk.KEY_Caps_Lock, Gdk.KEY_Num_Lock, Gdk.KEY_ISO_Level3_Shift,
 }
 _KEY_NAME_FIXES = {"iso_left_tab": "tab"}
+# Modifier keys that can make up a modifier-only shortcut such as Alt + Shift.
+_CHORD_NAMES = {
+    Gdk.KEY_Control_L: "ctrl", Gdk.KEY_Control_R: "ctrl",
+    Gdk.KEY_Alt_L: "alt", Gdk.KEY_Alt_R: "alt",
+    Gdk.KEY_Meta_L: "alt", Gdk.KEY_Meta_R: "alt",
+    Gdk.KEY_Shift_L: "shift", Gdk.KEY_Shift_R: "shift",
+    Gdk.KEY_Super_L: "super", Gdk.KEY_Super_R: "super",
+}
 
 
 def spec_from_event(controller: Gtk.EventControllerKey, keyval: int, keycode: int,
@@ -1666,6 +1683,10 @@ class ShortcutDialog(Gtk.Window):
         self._other_title = other_title
         self._current = current
         self._chosen = current
+        # Modifier-only shortcuts are decided when the keys are released.
+        self._held: set[int] = set()
+        self._peak: set[str] = set()
+        self._dirty = False
 
         self.set_titlebar(make_titlebar(label(title, "dialog-title")))
 
@@ -1679,7 +1700,8 @@ class ShortcutDialog(Gtk.Window):
         content.append(
             label(
                 "Nhấn tổ hợp phím bạn muốn dùng. Cần có Ctrl, Alt hoặc Super "
-                "(riêng phím F1–F12 có thể dùng một mình).",
+                "(riêng phím F1–F12 có thể dùng một mình). Hoặc giữ hai phím như "
+                "Alt + Shift rồi nhả, giống EVKey.",
                 "option-sub",
                 wrap=True,
             )
@@ -1697,7 +1719,12 @@ class ShortcutDialog(Gtk.Window):
         content.append(self._message)
 
         content.append(label("Gợi ý", "section-heading"))
-        suggestions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        suggestions = Gtk.FlowBox()
+        suggestions.set_selection_mode(Gtk.SelectionMode.NONE)
+        suggestions.set_homogeneous(False)
+        suggestions.set_column_spacing(8)
+        suggestions.set_row_spacing(8)
+        suggestions.set_max_children_per_line(6)
         suggestions.set_halign(Gtk.Align.START)
         for spec, display in presets:
             button = Gtk.Button(label=display)
@@ -1727,6 +1754,7 @@ class ShortcutDialog(Gtk.Window):
         keys = Gtk.EventControllerKey()
         keys.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
         keys.connect("key-pressed", self._on_key_pressed)
+        keys.connect("key-released", self._on_key_released)
         self.add_controller(keys)
         self._keys = keys
 
@@ -1767,10 +1795,29 @@ class ShortcutDialog(Gtk.Window):
         if keyval == Gdk.KEY_Escape and plain:
             self.close()
             return True
+        name = _CHORD_NAMES.get(keyval)
+        if name is not None:
+            self._held.add(keyval)
+            self._peak.add(name)
+            return True
+        if self._peak:
+            self._dirty = True  # a normal key joined the modifiers: not a chord
         spec = spec_from_event(controller, keyval, keycode, state)
         if spec is not None:
             self._choose(spec)
         return True  # swallow everything: the keys are the input here
+
+    def _on_key_released(self, _controller, keyval, _keycode, _state) -> None:
+        if keyval not in self._held:
+            return
+        if not self._dirty and len(self._peak) >= 2:
+            ordered = [m for m in ("ctrl", "alt", "shift", "super") if m in self._peak]
+            self._choose("+".join(ordered))
+            self._peak = set()  # fire once, even though several keys are released
+        self._held.discard(keyval)
+        if not self._held:
+            self._peak = set()
+            self._dirty = False
 
     def _save(self, _button: Gtk.Button) -> None:
         if not config.valid_shortcut(self._chosen):
