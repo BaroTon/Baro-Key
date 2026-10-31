@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=BaroKey
+GenericName=Bộ gõ tiếng Việt
+Comment=Cấu hình bộ gõ tiếng Việt BaroKey cho Linux
+Exec=@EXEC@
+Icon=barokey
+Terminal=false
+Categories=Settings;GTK;
+Keywords=vietnamese;ime;telex;vni;baro;barokey;
+StartupNotify=true
+StartupWMClass=io.github.baro.BaroKey

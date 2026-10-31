@@ -28,6 +28,18 @@ class TelexTests(unittest.TestCase):
         self.check("dd", "đ")
         self.check("w", "ư")
 
+    def test_double_tone_key_restores_letter(self):
+        self.check("ass", "as")
+        self.check("aff", "af")
+        self.check("arr", "ar")
+        self.check("axx", "ax")
+        self.check("ajj", "aj")
+        self.check("barr", "bar")
+        self.check("barro", "baro")
+        self.check("ASS", "AS")
+        self.check("Barr", "Bar")
+        self.check("baro", "bảo")
+
     def test_words(self):
         self.check("vieetj", "việt")
         self.check("tieengs", "tiếng")
@@ -54,6 +66,10 @@ class TelexTests(unittest.TestCase):
         self.check("aaa", "aaa")
         self.check("hello", "hello")
         self.check("xyzq", "xyzq")
+
+    def test_invalid_without_auto_restore(self):
+        self.assertEqual(convert("asd", "telex", auto_restore=False), "ád")
+        self.assertEqual(convert("hello", "telex", auto_restore=False), "hello")
 
     def test_case(self):
         self.check("AS", "Á")

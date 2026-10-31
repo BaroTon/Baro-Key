@@ -157,6 +157,26 @@ def main() -> int:
     check(app.commits == ["a"], "reset starts a new word", app.commits)
     app.close()
 
+    app = App(bus, "bamboo")
+    bamboo_cases = (
+        ("anw", "ăn"),
+        ("comw", "cơm"),
+        ("chuaw", "chưa"),
+        ("barr", "bar"),
+        ("barro", "baro"),
+        ("baro", "bảo"),
+        ("stress", "stress"),
+        ("wwork", "work"),
+        ("chEe", "chÊ"),
+        ("CHAOf", "CHÀO"),
+    )
+    for keys, expected in bamboo_cases:
+        app.type(keys)
+        check(app.preedit == expected, f"{keys} preedit", app.preedit)
+        app.key(" ")
+        check(app.text.endswith(expected), f"{keys} commit", app.text)
+    app.close()
+
     app = App(bus, "password", IBus.InputPurpose.PASSWORD)
     app.type("aa dd ")
     check(app.commits == [], "password has no commits", app.commits)

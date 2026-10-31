@@ -1,0 +1,16 @@
+[package]
+name = "baro-bamboo"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.88"
+publish = false
+description = "BARO typing core built on bamboo-core, the engine used by Ngó Sen"
+license = "MIT"
+
+[lib]
+name = "baro_bamboo"
+crate-type = ["cdylib", "staticlib", "rlib"]
+
+[dependencies]
+bamboo-core = "0.5.2"
+libc = "0.2"

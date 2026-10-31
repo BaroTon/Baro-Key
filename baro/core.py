@@ -118,11 +118,18 @@ def _tone_index(nucleus: str, coda: str, style: str) -> int:
 def _parse_telex(raw: str):
     letters: list[str] = []
     tone = 0
+    literal = False
     for ch in raw:
         has_vowel = any(c in VOWELS for c in letters)
         if ch in TELEX_TONES and has_vowel:
             new_tone = TELEX_TONES[ch]
-            tone = 0 if tone == new_tone else new_tone
+            if tone == new_tone:
+                # Gõ lặp phím dấu để lấy chính ký tự đó: "ass" -> "as".
+                letters.append(ch)
+                tone = 0
+                literal = True
+            else:
+                tone = new_tone
             continue
         if ch == "z" and has_vowel:
             if tone:
@@ -158,7 +165,7 @@ def _parse_telex(raw: str):
             letters.append("ư")
             continue
         letters.append(ch)
-    return "".join(letters), tone
+    return "".join(letters), tone, literal
 
 
 def _parse_vni(raw: str):
@@ -225,17 +232,23 @@ def _match_case(text: str, raw: str) -> str:
     return text
 
 
-def convert(raw: str, method: str = "telex", style: str = "modern") -> str:
+def convert(
+    raw: str,
+    method: str = "telex",
+    style: str = "modern",
+    auto_restore: bool = True,
+) -> str:
     """Convert raw keystrokes into Vietnamese, restoring raw when invalid."""
     if not raw:
         return ""
     lowered = raw.lower()
     if method == "vni":
         letters, tone = _parse_vni(lowered)
+        literal = False
     else:
-        letters, tone = _parse_telex(lowered)
+        letters, tone, literal = _parse_telex(lowered)
 
-    if not valid_prefix(letters):
+    if not valid_prefix(letters) and auto_restore and not literal:
         return raw
 
     if tone:

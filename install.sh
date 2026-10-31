@@ -19,19 +19,58 @@ if ! python3 -c 'import gi; gi.require_version("IBus", "1.0"); from gi.repositor
     exit 1
 fi
 
+BAMBOO_DIR="$ROOT_DIR/fcitx5/rust"
+BAMBOO_SO="$BAMBOO_DIR/target/release/libbaro_bamboo.so"
+if [ -z "${CARGO:-}" ]; then
+    if [ -x "$HOME/.cargo/bin/cargo" ]; then
+        CARGO="$HOME/.cargo/bin/cargo"
+    else
+        CARGO="$(command -v cargo || true)"
+    fi
+fi
+if [ -n "$CARGO" ] && [ -x "$CARGO" ]; then
+    echo "Đang build lõi gõ bamboo-core ..."
+    if ! (cd "$BAMBOO_DIR" && "$CARGO" build --release); then
+        echo "Cảnh báo: build lõi bamboo-core thất bại; sẽ dùng lõi Python nếu chưa có .so."
+    fi
+fi
+
 echo "Đang cài BARO vào $LIB_DIR ..."
-install -d "$LIB_DIR" "$LIB_DIR/bin" "$LIB_DIR/share" "$BIN_DIR" "$DATA_HOME/applications"
+install -d "$LIB_DIR" "$LIB_DIR/bin" "$LIB_DIR/share" "$BIN_DIR" \
+    "$DATA_HOME/applications" "$DATA_HOME/icons/hicolor/scalable/apps"
+for size in 16 24 32 48 64 128 256 512; do
+    install -d "$DATA_HOME/icons/hicolor/${size}x${size}/apps"
+    install -m 644 "$ROOT_DIR/desktop/icons/barokey-$size.png" \
+        "$DATA_HOME/icons/hicolor/${size}x${size}/apps/barokey.png"
+done
+install -m 644 "$ROOT_DIR/desktop/barokey.png" "$ROOT_DIR/desktop/barokey-mark.png" \
+    "$ROOT_DIR/desktop/barokey-donate-qr.png" "$LIB_DIR/share/"
 rm -rf "$LIB_DIR/baro"
 cp -a "$ROOT_DIR/baro" "$LIB_DIR/"
 install -m 755 "$ROOT_DIR/bin/baro-engine" "$LIB_DIR/bin/baro-engine"
 install -m 755 "$ROOT_DIR/bin/baro-settings" "$LIB_DIR/bin/baro-settings"
+install -m 644 "$ROOT_DIR/desktop/baro.svg" "$LIB_DIR/share/baro.svg"
+install -m 644 "$ROOT_DIR/desktop/baro.svg" "$DATA_HOME/icons/hicolor/scalable/apps/baro.svg"
+if [ -f "$BAMBOO_SO" ]; then
+    install -m 755 "$BAMBOO_SO" "$LIB_DIR/libbaro_bamboo.so"
+else
+    echo "Cảnh báo: chưa có $BAMBOO_SO."
+    echo "BARO sẽ dùng lõi Python cũ; muốn dùng bamboo-core, cài Rust rồi chạy lại script."
+fi
 ln -sfn "$LIB_DIR/bin/baro-engine" "$BIN_DIR/baro-engine"
 ln -sfn "$LIB_DIR/bin/baro-settings" "$BIN_DIR/baro-settings"
+if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+    gtk-update-icon-cache -f -t "$DATA_HOME/icons/hicolor" >/dev/null 2>&1 || true
+fi
 
 sed "s|@EXEC@|$LIB_DIR/bin/baro-engine|g" \
     "$ROOT_DIR/data/baro.xml.in" > "$LIB_DIR/share/baro.xml"
 sed "s|@EXEC@|$LIB_DIR/bin/baro-settings|g" \
-    "$ROOT_DIR/desktop/baro-settings.desktop.in" > "$DATA_HOME/applications/baro-settings.desktop"
+    "$ROOT_DIR/desktop/io.github.baro.BaroKey.desktop.in" > "$DATA_HOME/applications/io.github.baro.BaroKey.desktop"
+rm -f "$DATA_HOME/applications/baro-settings.desktop"
+if command -v update-desktop-database >/dev/null 2>&1; then
+    update-desktop-database "$DATA_HOME/applications" >/dev/null 2>&1 || true
+fi
 
 component_installed=0
 if [ -f "$SYSTEM_COMPONENT" ] && cmp -s "$LIB_DIR/share/baro.xml" "$SYSTEM_COMPONENT"; then

@@ -1,24 +1,2549 @@
 #!/usr/bin/env python3
-"""BARO settings window (GTK4)."""
+"""BaroKey settings window (GTK4).
+
+The layout follows the supplied BaroKey UI design: a 1024x720 slate window,
+a 40 px title bar, a 256 px sidebar and flat cards on a dark blue background.
+"""
 
 from __future__ import annotations
 
 import os
 import sys
+from string import Template
 
 import gi
 
 gi.require_version("Gtk", "4.0")
-from gi.repository import Gtk  # noqa: E402
+gi.require_version("Gdk", "4.0")
+from gi.repository import Gdk, Gio, GLib, Gtk  # noqa: E402
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
-from baro import config  # noqa: E402
+from baro import __version__, config, notify  # noqa: E402
+
+APP_ID = "io.github.baro.BaroKey"
+APP_NAME = "BaroKey"
+SITE_URL = "https://github.com/BaroTon/Baro-Key"
+ISSUES_URL = "https://github.com/BaroTon/Baro-Key/issues"
+DONATE_BANK = "TPBank"
+DONATE_ACCOUNT_NAME = "TON BAO TRI"
+DONATE_ACCOUNT_NUMBER = "90922013333"
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+
+NAV_ITEMS = (
+    ("overview", "Tổng quan", "go-home-symbolic"),
+    ("method", "Kiểu gõ", "input-keyboard-symbolic"),
+    ("charset", "Bảng mã", "font-x-generic-symbolic"),
+    ("options", "Tùy chọn", "preferences-system-symbolic"),
+    ("shortcuts", "Phím tắt", "preferences-desktop-keyboard-symbolic"),
+    ("appearance", "Giao diện", "applications-graphics-symbolic"),
+    ("about", "Thông tin", "help-about-symbolic"),
+)
+
+SHORTCUT_PRESETS = {
+    "toggle": (
+        ("ctrl+shift+v", "Ctrl + Shift + V"),
+        ("ctrl+grave", "Ctrl + `"),
+        ("alt+z", "Alt + Z"),
+    ),
+    "enable": (
+        ("ctrl+shift+b", "Ctrl + Shift + B"),
+        ("ctrl+space", "Ctrl + Space"),
+        ("alt+b", "Alt + B"),
+    ),
+}
+
+DARK = {
+    "window": "#0f172a",
+    "main": "#0f172a",
+    "glow": "#111c33",
+    "card": "#1e293b",
+    "card_hover": "#22314a",
+    "border": "#334155",
+    "border_soft": "#1e293b",
+    "border_hover": "#475569",
+    "fg": "#f8fafc",
+    "text": "#e2e8f0",
+    "muted": "#94a3b8",
+    "subtle": "#64748b",
+    "faint": "#475569",
+    "accent": "#2563eb",
+    "accent_hover": "#1d4ed8",
+    "accent_light": "#3b82f6",
+    "accent_soft": "#172554",
+    "green": "#4ade80",
+    "green_dot": "#22c55e",
+    "green_glow": "#4ade80",
+    "blue_text": "#bfdbfe",
+    "switch_off": "#475569",
+    "nav_hover": "#172033",
+    "brand_card": "#141c2f",
+    "brand_border": "#1b2639",
+    "branding_name": "#cbd5e1",
+    "info_bg": "#121e3d",
+    "info_border": "#1e3a8a",
+    "info_text": "#bfdbfe",
+    "badge_bg": "#172554",
+    "badge_border": "#1e40af",
+    "badge_text": "#93c5fd",
+    "keycap": "#0f172a",
+    "keycap_text": "#cbd5e1",
+    "keycap_border": "#334155",
+    "big_from": "#1e3a8a",
+    "big_to": "#1e1b4b",
+    "big_border": "#2c4a9e",
+    "big_status": "#bfdbfe",
+    "big_shell": "#2a3550",
+    "big_shell_border": "#3b4a6b",
+    "mini_light_bg": "#e2e8f0",
+    "mini_dark_bg": "#0f172a",
+    "mini_border": "#475569",
+    "shadow": "rgba(0, 0, 0, 0.30)",
+    "toast": "#1e293b",
+    "toast_text": "#f8fafc",
+    "preview_light": "#ffffff",
+    "preview_light_side": "#f1f5f9",
+    "preview_light_line": "#e2e8f0",
+    "preview_dark": "#1e293b",
+    "preview_dark_side": "#0f172a",
+    "preview_dark_line": "#334155",
+}
+
+LIGHT = {
+    "window": "#ffffff",
+    "main": "#f8fafc",
+    "glow": "#ffffff",
+    "card": "#ffffff",
+    "card_hover": "#f1f5f9",
+    "border": "#e2e8f0",
+    "border_soft": "#e2e8f0",
+    "border_hover": "#94a3b8",
+    "fg": "#0f172a",
+    "text": "#1e293b",
+    "muted": "#64748b",
+    "subtle": "#94a3b8",
+    "faint": "#cbd5e1",
+    "accent": "#2563eb",
+    "accent_hover": "#1d4ed8",
+    "accent_light": "#3b82f6",
+    "accent_soft": "#eff6ff",
+    "green": "#16a34a",
+    "green_dot": "#22c55e",
+    "green_glow": "#22c55e",
+    "blue_text": "#bfdbfe",
+    "switch_off": "#cbd5e1",
+    "nav_hover": "#f1f5f9",
+    "brand_card": "#f8fafc",
+    "brand_border": "#e2e8f0",
+    "branding_name": "#334155",
+    "info_bg": "#eff6ff",
+    "info_border": "#bfdbfe",
+    "info_text": "#1e40af",
+    "badge_bg": "#eff6ff",
+    "badge_border": "#bfdbfe",
+    "badge_text": "#1d4ed8",
+    "keycap": "#ffffff",
+    "keycap_text": "#334155",
+    "keycap_border": "#cbd5e1",
+    "big_from": "#1e3a8a",
+    "big_to": "#1e1b4b",
+    "big_border": "#2c4a9e",
+    "big_status": "#bfdbfe",
+    "big_shell": "#2a3550",
+    "big_shell_border": "#3b4a6b",
+    "mini_light_bg": "#e2e8f0",
+    "mini_dark_bg": "#0f172a",
+    "mini_border": "#94a3b8",
+    "shadow": "rgba(0, 0, 0, 0.10)",
+    "toast": "#0f172a",
+    "toast_text": "#f8fafc",
+    "preview_light": "#ffffff",
+    "preview_light_side": "#f1f5f9",
+    "preview_light_line": "#e2e8f0",
+    "preview_dark": "#1e293b",
+    "preview_dark_side": "#0f172a",
+    "preview_dark_line": "#334155",
+}
+
+CSS = Template(
+    """
+window.barokey {
+    background-color: $window;
+    background-image: none;
+    color: $text;
+    font-family: "Inter", "Cantarell", "Noto Sans", sans-serif;
+    font-size: 14px;
+}
+
+windowhandle.titlebar {
+    background-color: $window;
+    background-image: none;
+    min-height: 40px;
+}
+
+box.titlebar-inner {
+    background-color: $window;
+    background-image: none;
+    border-bottom: 1px solid $border_soft;
+    min-height: 40px;
+    padding: 0 16px;
+}
+
+label.titlebar-name {
+    color: $muted;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+label.titlebar-sub {
+    color: $faint;
+    font-size: 12px;
+}
+
+windowcontrols button {
+    background-color: transparent;
+    background-image: none;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    box-shadow: none;
+    color: $muted;
+    min-width: 24px;
+    min-height: 24px;
+    padding: 3px;
+}
+
+windowcontrols button:hover {
+    background-color: $card;
+    color: $fg;
+}
+
+windowcontrols button.close:hover {
+    background-color: #dc2626;
+    color: #ffffff;
+}
+
+box.sidebar {
+    background-color: $window;
+    background-image: none;
+    border-right: 1px solid $border_soft;
+}
+
+label.brand-title {
+    color: $fg;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+label.brand-sub {
+    color: $muted;
+    font-size: 10px;
+}
+
+button.nav {
+    background-color: transparent;
+    background-image: none;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    box-shadow: none;
+    color: $muted;
+    padding: 10px 12px;
+    min-height: 20px;
+}
+
+button.nav:hover {
+    background-color: $nav_hover;
+    color: $text;
+}
+
+button.nav:focus {
+    outline: none;
+    box-shadow: none;
+}
+
+button.nav.current {
+    background-color: $accent;
+    background-image: linear-gradient(90deg, $accent, $accent);
+    color: #ffffff;
+    box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+}
+
+button.nav.current:hover {
+    background-color: $accent;
+    background-image: linear-gradient(90deg, $accent, $accent);
+}
+
+button.nav label {
+    color: inherit;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+button.nav image {
+    color: inherit;
+}
+
+box.branding-card {
+    background-color: $brand_card;
+    background-image: none;
+    border: 1px solid $brand_border;
+    border-radius: 12px;
+    padding: 16px;
+}
+
+label.branding-name {
+    color: $branding_name;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+label.branding-version {
+    color: $subtle;
+    font-size: 9px;
+}
+
+label.branding-text {
+    color: $subtle;
+    font-size: 10px;
+}
+
+box.main-area {
+    background-color: $main;
+    background-image: linear-gradient(135deg, $glow 0%, $main 42%);
+}
+
+scrolledwindow.content,
+scrolledwindow.content > viewport {
+    background-color: transparent;
+    background-image: none;
+    border: none;
+}
+
+box.page {
+    background-color: transparent;
+    background-image: none;
+}
+
+label.page-title {
+    color: $fg;
+    font-size: 20px;
+    font-weight: 600;
+}
+
+image.page-icon {
+    color: $accent_light;
+}
+
+label.page-subtitle {
+    color: $muted;
+    font-size: 14px;
+}
+
+box.card {
+    background-color: $card;
+    background-image: none;
+    border: 1px solid $border;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: none;
+}
+
+box.card.big {
+    background-image: linear-gradient(90deg, $big_from, $big_to);
+    border: 1px solid $big_border;
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 12px 30px rgba(23, 37, 84, 0.28);
+}
+
+box.card.stats {
+    border-radius: 16px;
+}
+
+box.card.small {
+    border-radius: 12px;
+    padding: 16px;
+}
+
+box.card.shortcuts {
+    border-radius: 16px;
+}
+
+box.card.option-card {
+    border-radius: 12px;
+    padding: 20px;
+}
+
+box.card.info-banner {
+    background-color: $info_bg;
+    border: 1px solid $info_border;
+    border-radius: 12px;
+    padding: 16px;
+}
+
+box.card.about-card {
+    border-radius: 24px;
+    padding: 40px;
+    box-shadow: 0 14px 34px $shadow;
+}
+
+box.hoverable:hover {
+    border-color: $border_hover;
+}
+
+label.big-title {
+    color: #ffffff;
+    font-size: 24px;
+    font-weight: 600;
+}
+
+label.big-status {
+    color: $big_status;
+    font-size: 14px;
+}
+
+box.status-dot {
+    min-width: 8px;
+    min-height: 8px;
+    border-radius: 999px;
+    background-color: $green_dot;
+    box-shadow: 0 0 8px $green_glow;
+}
+
+box.status-dot.off {
+    background-color: $muted;
+    box-shadow: none;
+}
+
+box.big-switch-shell {
+    background-color: $big_shell;
+    border: 1px solid $big_shell_border;
+    border-radius: 999px;
+    padding: 4px;
+}
+
+box.stat-bar {
+    min-width: 6px;
+    min-height: 32px;
+    border-radius: 3px;
+    background-color: $green_dot;
+}
+
+box.stat-bar.off {
+    background-color: $muted;
+}
+
+label.card-heading {
+    color: $text;
+    font-size: 15px;
+    font-weight: 500;
+}
+
+label.card-label {
+    color: $muted;
+    font-size: 13px;
+}
+
+label.card-value {
+    color: $text;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+label.card-value-green {
+    color: $green;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+label.card-value-blue {
+    color: $accent_light;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+label.card-value-off {
+    color: $muted;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+label.quick-text {
+    color: $subtle;
+    font-size: 13px;
+    font-style: italic;
+}
+
+label.quote {
+    color: $subtle;
+    font-size: 12px;
+    font-style: italic;
+}
+
+label.section-heading {
+    color: $text;
+    font-size: 15px;
+    font-weight: 500;
+}
+
+label.info-text {
+    color: $info_text;
+    font-size: 14px;
+}
+
+label.option-title {
+    color: $text;
+    font-size: 15px;
+    font-weight: 500;
+}
+
+label.option-sub {
+    color: $muted;
+    font-size: 12px;
+}
+
+label.badge {
+    background-color: $badge_bg;
+    background-image: none;
+    border: 1px solid $badge_border;
+    border-radius: 999px;
+    color: $badge_text;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 2px 8px;
+}
+
+box.icon-tile {
+    background-color: $keycap;
+    background-image: none;
+    border: 1px solid $border;
+    border-radius: 8px;
+}
+
+image.tile-icon {
+    color: $muted;
+}
+
+box.keycap {
+    background-color: $keycap;
+    background-image: none;
+    border: 1px solid $keycap_border;
+    border-radius: 4px;
+    padding: 4px 8px;
+    box-shadow: none;
+}
+
+box.keycap.large {
+    border-radius: 6px;
+    padding: 6px 10px;
+}
+
+label.keycap {
+    color: $keycap_text;
+    font-family: "JetBrains Mono", "DejaVu Sans Mono", monospace;
+    font-size: 11px;
+}
+
+box.keycap.large label.keycap {
+    font-size: 12px;
+}
+
+label.key-plus {
+    color: $subtle;
+    font-size: 11px;
+}
+
+box.key-tile {
+    background-color: $card;
+    background-image: none;
+    border: 1px solid $keycap_border;
+    border-radius: 4px;
+    min-width: 24px;
+    min-height: 24px;
+}
+
+label.key-tile {
+    color: $muted;
+    font-family: "JetBrains Mono", "DejaVu Sans Mono", monospace;
+    font-size: 11px;
+}
+
+button.primary {
+    background-color: $accent;
+    background-image: linear-gradient(90deg, $accent, $accent);
+    border: 1px solid transparent;
+    border-radius: 8px;
+    box-shadow: none;
+    color: #ffffff;
+    padding: 7px 16px;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+button.primary:hover {
+    background-color: $accent_hover;
+}
+
+button.ghost {
+    background-color: transparent;
+    background-image: none;
+    border: 1px solid $border_hover;
+    border-radius: 8px;
+    box-shadow: none;
+    color: $text;
+    padding: 7px 14px;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+button.ghost:hover {
+    background-color: $card_hover;
+    border-color: $accent_light;
+}
+
+button.ghost:disabled {
+    color: $subtle;
+    border-color: $border;
+    opacity: 0.7;
+}
+
+button.about-link {
+    background-color: $keycap;
+    background-image: none;
+    border: 1px solid $border_hover;
+    border-radius: 12px;
+    box-shadow: none;
+    color: $text;
+    padding: 10px 18px;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+button.about-link:hover {
+    background-color: $card_hover;
+    border-color: $muted;
+}
+
+switch {
+    background-color: $switch_off;
+    background-image: none;
+    border: none;
+    border-radius: 999px;
+    box-shadow: none;
+    min-width: 44px;
+    min-height: 24px;
+}
+
+switch:checked {
+    background-color: $accent;
+}
+
+switch > slider {
+    background-color: #ffffff;
+    background-image: none;
+    border: none;
+    border-radius: 999px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.24);
+    min-width: 16px;
+    min-height: 16px;
+    margin: 4px;
+}
+
+switch:disabled {
+    opacity: 0.4;
+}
+
+switch.big {
+    min-width: 56px;
+    min-height: 32px;
+    background-color: #64748b;
+}
+
+switch.big:checked {
+    background-color: #2563eb;
+}
+
+switch.big > slider {
+    min-width: 24px;
+    min-height: 24px;
+    margin: 4px;
+}
+
+button.radio-card {
+    background-color: $card;
+    background-image: none;
+    border: 1px solid $border;
+    border-radius: 12px;
+    box-shadow: none;
+    padding: 16px;
+}
+
+button.radio-card:hover {
+    border-color: $border_hover;
+    background-color: $card;
+}
+
+button.radio-card.selected {
+    background-color: $accent_soft;
+    background-image: linear-gradient(90deg, $accent_soft, $accent_soft);
+    border-color: $accent_light;
+}
+
+button.radio-card:disabled {
+    opacity: 0.55;
+}
+
+button.radio-card:focus {
+    outline: none;
+    box-shadow: none;
+}
+
+label.radio-title {
+    color: $text;
+    font-size: 15px;
+    font-weight: 500;
+}
+
+button.radio-card.selected label.radio-title {
+    color: $accent_light;
+}
+
+label.radio-desc {
+    color: $muted;
+    font-size: 14px;
+    font-weight: 400;
+}
+
+box.radio-ring {
+    border: 2px solid $muted;
+    border-radius: 999px;
+    min-width: 16px;
+    min-height: 16px;
+    padding: 0;
+}
+
+button.radio-card.selected box.radio-ring {
+    border-color: $accent_light;
+}
+
+box.radio-dot {
+    background-color: $accent_light;
+    background-image: none;
+    border-radius: 999px;
+    min-width: 8px;
+    min-height: 8px;
+}
+
+box.radio-right {
+    background-color: $keycap;
+    border: 1px solid $border;
+    border-radius: 8px;
+    padding: 8px;
+}
+
+button.theme-card {
+    background-color: transparent;
+    background-image: none;
+    border: 2px solid transparent;
+    border-radius: 16px;
+    box-shadow: none;
+    padding: 6px;
+}
+
+button.theme-card:hover {
+    border-color: $border_hover;
+}
+
+button.theme-card.selected {
+    border-color: $accent_light;
+    background-color: $accent_soft;
+    background-image: linear-gradient(90deg, $accent_soft, $accent_soft);
+}
+
+button.theme-card:focus {
+    outline: none;
+    box-shadow: none;
+}
+
+box.theme-preview {
+    border-radius: 12px;
+    border: 1px solid $border;
+}
+
+box.theme-preview.light {
+    background-color: $mini_light_bg;
+}
+
+box.theme-preview.dark {
+    background-color: $mini_dark_bg;
+}
+
+box.theme-preview.auto {
+    background-image: linear-gradient(135deg, $mini_light_bg 0%, $mini_light_bg 48%, $mini_dark_bg 52%, $mini_dark_bg 100%);
+}
+
+box.mini-window {
+    border-radius: 6px;
+    border: 1px solid $mini_border;
+}
+
+box.mini-window.light {
+    background-color: $preview_light;
+}
+
+box.mini-window.dark {
+    background-color: $preview_dark;
+}
+
+box.mini-sidebar.light {
+    background-color: $preview_light_side;
+    border-right: 1px solid $preview_light_line;
+}
+
+box.mini-sidebar.dark {
+    background-color: $preview_dark_side;
+    border-right: 1px solid $preview_dark_line;
+}
+
+box.mini-line.light {
+    background-color: $preview_light_line;
+}
+
+box.mini-line.dark {
+    background-color: $preview_dark_line;
+}
+
+box.mini-line.blue {
+    background-color: $accent_light;
+}
+
+label.theme-label {
+    color: $text;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+box.shortcut-group {
+    background-color: transparent;
+}
+
+label.shortcut-label {
+    color: $muted;
+    font-size: 13px;
+}
+
+separator {
+    background-color: $border_soft;
+    min-height: 1px;
+}
+
+box.toast-box {
+    background-color: $toast;
+    background-image: none;
+    border: 1px solid $border_hover;
+    border-radius: 10px;
+    padding: 10px 16px;
+    box-shadow: 0 10px 26px $shadow;
+}
+
+label.toast {
+    color: $toast_text;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+label.about-name {
+    color: $fg;
+    font-size: 30px;
+    font-weight: 700;
+}
+
+label.about-desc {
+    color: $muted;
+    font-size: 14px;
+}
+
+label.about-version {
+    background-color: $badge_bg;
+    background-image: none;
+    border: 1px solid $badge_border;
+    border-radius: 999px;
+    color: $badge_text;
+    font-size: 14px;
+    font-weight: 500;
+    padding: 3px 12px;
+}
+
+label.donate-title {
+    color: $fg;
+    font-size: 20px;
+    font-weight: 600;
+}
+
+label.donate-sub {
+    color: $muted;
+    font-size: 13px;
+}
+
+label.donate-heart {
+    color: #f87171;
+    font-size: 24px;
+}
+
+box.qr-card {
+    background-color: #ffffff;
+    background-image: none;
+    border: 1px solid $border_hover;
+    border-radius: 16px;
+    padding: 12px;
+}
+
+box.account-card {
+    background-color: $card;
+    background-image: none;
+    border: 1px solid $border;
+    border-radius: 12px;
+    padding: 16px;
+}
+
+label.account-label {
+    color: $muted;
+    font-size: 12px;
+}
+
+label.account-value {
+    color: $text;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+label.account-number {
+    color: $fg;
+    font-family: "JetBrains Mono", "DejaVu Sans Mono", monospace;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+label.donate-note {
+    color: $subtle;
+    font-size: 12px;
+}
+
+label.copyright {
+    color: $subtle;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+label.copyright-small {
+    color: $subtle;
+    font-size: 12px;
+}
+
+label.dialog-title {
+    color: $fg;
+    font-size: 14px;
+    font-weight: 600;
+}
+"""
+)
 
 
-class BaroSettings(Gtk.Application):
+def asset_path(name: str) -> str:
+    for base in (
+        os.path.join(BASE_DIR, "desktop"),
+        os.path.join(BASE_DIR, "share"),
+        os.path.join(BASE_DIR, "data"),
+    ):
+        path = os.path.join(base, name)
+        if os.path.exists(path):
+            return path
+    return ""
+
+
+def logo_image(size: int) -> Gtk.Widget:
+    path = asset_path("barokey.png")
+    if path:
+        image = Gtk.Image.new_from_file(path)
+        image.set_pixel_size(size)
+        return image
+    image = Gtk.Image.new_from_icon_name("input-keyboard-symbolic")
+    image.set_pixel_size(size)
+    return image
+
+
+def donate_qr_image(size: int = 220) -> Gtk.Widget:
+    path = asset_path("barokey-donate-qr.png")
+    if path:
+        image = Gtk.Image.new_from_file(path)
+        image.set_pixel_size(size)
+        return image
+    image = Gtk.Image.new_from_icon_name("dialog-information-symbolic")
+    image.set_pixel_size(size)
+    return image
+
+
+def icon(name: str, size: int = 18, css: str | None = "tile-icon") -> Gtk.Image:
+    image = Gtk.Image.new_from_icon_name(name)
+    image.set_pixel_size(size)
+    image.set_valign(Gtk.Align.CENTER)
+    if css:
+        image.add_css_class(css)
+    return image
+
+
+def label(
+    text: str,
+    css: str | None = None,
+    *,
+    wrap: bool = False,
+    xalign: float = 0.0,
+    justify_center: bool = False,
+    selectable: bool = False,
+) -> Gtk.Label:
+    widget = Gtk.Label(label=text)
+    widget.set_xalign(xalign)
+    widget.set_wrap(wrap)
+    if justify_center:
+        widget.set_justify(Gtk.Justification.CENTER)
+    if selectable:
+        widget.set_selectable(True)
+    if css:
+        widget.add_css_class(css)
+    return widget
+
+
+def spacer() -> Gtk.Box:
+    box = Gtk.Box()
+    box.set_hexpand(True)
+    box.set_vexpand(True)
+    return box
+
+
+def separator() -> Gtk.Separator:
+    sep = Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL)
+    sep.set_margin_top(12)
+    sep.set_margin_bottom(12)
+    return sep
+
+
+def shortcut_parts(spec: str) -> list[str]:
+    return [part.strip() for part in notify.shortcut_label(spec).split("+")]
+
+
+def keycap(text: str, large: bool = False) -> Gtk.Widget:
+    box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+    box.add_css_class("keycap")
+    if large:
+        box.add_css_class("large")
+    box.append(label(text, "keycap"))
+    return box
+
+
+def key_tile(text: str) -> Gtk.Widget:
+    box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+    box.add_css_class("key-tile")
+    box.set_halign(Gtk.Align.CENTER)
+    box.set_valign(Gtk.Align.CENTER)
+    box.append(label(text, "key-tile"))
+    return box
+
+
+def keycaps_row(spec: str, large: bool = False) -> Gtk.Box:
+    row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6 if large else 4)
+    parts = shortcut_parts(spec)
+    for index, part in enumerate(parts):
+        if index:
+            row.append(label("+", "key-plus"))
+        row.append(keycap(part, large))
+    return row
+
+
+def fill_keycaps(container: Gtk.Box, spec: str, large: bool = False) -> None:
+    for child in list(container):
+        container.remove(child)
+    row = keycaps_row(spec, large)
+    container.append(row)
+
+
+def make_titlebar(title_widget: Gtk.Widget) -> Gtk.Widget:
+    handle = Gtk.WindowHandle()
+    handle.add_css_class("titlebar")
+    bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+    bar.add_css_class("titlebar-inner")
+    bar.set_margin_start(16)
+    bar.set_margin_end(8)
+    title_widget.set_valign(Gtk.Align.CENTER)
+    bar.append(title_widget)
+    expand = Gtk.Box()
+    expand.set_hexpand(True)
+    bar.append(expand)
+    controls = Gtk.WindowControls(side=Gtk.PackType.END)
+    controls.set_decoration_layout(":minimize,maximize,close")
+    controls.set_valign(Gtk.Align.CENTER)
+    bar.append(controls)
+    handle.set_child(bar)
+    return handle
+
+
+def radio_card(
+    title: str,
+    description: str = "",
+    *,
+    active: bool = False,
+    enabled: bool = True,
+    right: Gtk.Widget | None = None,
+    badge: str | None = None,
+) -> tuple[Gtk.Button, Gtk.Box, Gtk.Box]:
+    button = Gtk.Button()
+    button.add_css_class("radio-card")
+    button.set_sensitive(enabled)
+
+    content = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=16)
+    content.set_hexpand(True)
+
+    ring = Gtk.Box()
+    ring.add_css_class("radio-ring")
+    ring.set_halign(Gtk.Align.CENTER)
+    ring.set_valign(Gtk.Align.START)
+    ring.set_margin_top(2)
+    dot = Gtk.Box()
+    dot.add_css_class("radio-dot")
+    dot.set_halign(Gtk.Align.CENTER)
+    dot.set_valign(Gtk.Align.CENTER)
+    dot.set_visible(active)
+    ring.append(dot)
+    content.append(ring)
+
+    labels = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+    labels.set_hexpand(True)
+    title_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+    title_row.append(label(title, "radio-title"))
+    if badge:
+        title_row.append(label(badge, "badge"))
+    labels.append(title_row)
+    if description:
+        labels.append(label(description, "radio-desc", wrap=True))
+    content.append(labels)
+
+    if right is not None:
+        right.set_valign(Gtk.Align.CENTER)
+        content.append(right)
+
+    button.set_child(content)
+    button.baro_active = active  # type: ignore[attr-defined]
+    button.baro_dot = dot  # type: ignore[attr-defined]
+    if active:
+        button.add_css_class("selected")
+    return button, button, dot
+
+
+def set_radio_active(button: Gtk.Button, active: bool) -> None:
+    button.baro_active = active  # type: ignore[attr-defined]
+    dot = getattr(button, "baro_dot", None)
+    if dot is not None:
+        dot.set_visible(active)
+    if active:
+        button.add_css_class("selected")
+    else:
+        button.remove_css_class("active")
+
+
+def option_card(
+    title: str,
+    subtitle: str,
+    switch: Gtk.Switch,
+    *,
+    badge: str | None = None,
+) -> Gtk.Box:
+    card = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=16)
+    card.add_css_class("card")
+    card.add_css_class("option-card")
+    card.set_hexpand(True)
+
+    labels = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+    labels.set_hexpand(True)
+    title_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+    title_row.append(label(title, "option-title"))
+    if badge:
+        title_row.append(label(badge, "badge"))
+    labels.append(title_row)
+    labels.append(label(subtitle, "option-sub", wrap=True))
+    card.append(labels)
+    switch.set_valign(Gtk.Align.CENTER)
+    card.append(switch)
+    return card
+
+
+def info_banner(text: str) -> Gtk.Box:
+    banner = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+    banner.add_css_class("card")
+    banner.add_css_class("info-banner")
+    banner.set_hexpand(True)
+    banner_icon = icon("dialog-information-symbolic", 20, None)
+    banner_icon.set_valign(Gtk.Align.START)
+    banner_icon.set_margin_top(1)
+    banner.append(banner_icon)
+    banner.append(label(text, "info-text", wrap=True))
+    return banner
+
+
+def add_key_grid(container: Gtk.Box, rows: tuple[tuple[str, ...], ...]) -> None:
+    holder = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+    holder.add_css_class("radio-right")
+    for keys in rows:
+        row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
+        for key in keys:
+            row.append(key_tile(key))
+        holder.append(row)
+    container.append(holder)
+
+
+def prefers_dark() -> bool:
+    try:
+        settings = Gio.Settings.new("org.gnome.desktop.interface")
+        if settings.get_string("color-scheme") == "prefer-dark":
+            return True
+    except Exception:
+        pass
+    gtk_settings = Gtk.Settings.get_default()
+    if gtk_settings is not None:
+        if gtk_settings.props.gtk_application_prefer_dark_theme:
+            return True
+        name = (gtk_settings.props.gtk_theme_name or "").lower()
+        if "dark" in name:
+            return True
+    return False
+
+
+class ShortcutDialog(Gtk.Window):
+    def __init__(
+        self,
+        parent: Gtk.Window,
+        title: str,
+        presets,
+        current: str,
+        on_save,
+    ):
+        super().__init__(
+            transient_for=parent,
+            modal=True,
+            title=title,
+            default_width=460,
+            default_height=380,
+        )
+        self.add_css_class("barokey")
+        self._on_save = on_save
+        self._current = current
+        self._cards: list[Gtk.Button] = []
+
+        self.set_titlebar(make_titlebar(label(title, "dialog-title")))
+
+        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
+        content.set_margin_top(24)
+        content.set_margin_bottom(24)
+        content.set_margin_start(24)
+        content.set_margin_end(24)
+        self.set_child(content)
+
+        content.append(
+            label(
+                "Chọn tổ hợp phím bạn muốn dùng cho BaroKey.",
+                "option-sub",
+                wrap=True,
+            )
+        )
+
+        for spec, display in presets:
+            card, *_ = radio_card(display, spec, active=spec == current)
+            card.baro_spec = spec  # type: ignore[attr-defined]
+            card.connect("clicked", self._select, spec)
+            self._cards.append(card)
+            content.append(card)
+
+        content.append(spacer())
+
+        actions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        actions.set_halign(Gtk.Align.END)
+        cancel = Gtk.Button(label="Hủy")
+        cancel.add_css_class("ghost")
+        cancel.connect("clicked", lambda *_: self.close())
+        save = Gtk.Button(label="Lưu")
+        save.add_css_class("primary")
+        save.connect("clicked", self._save)
+        actions.append(cancel)
+        actions.append(save)
+        content.append(actions)
+
+    def _select(self, _button: Gtk.Button, spec: str) -> None:
+        self._current = spec
+        for card in self._cards:
+            set_radio_active(card, getattr(card, "baro_spec", None) == spec)
+
+    def _save(self, _button: Gtk.Button) -> None:
+        self._on_save(self._current)
+        self.close()
+
+
+class DonateDialog(Gtk.Window):
+    """VietQR card used by the "Đóng góp" action in the About page."""
+
+    def __init__(self, parent: Gtk.Window):
+        super().__init__(
+            transient_for=parent,
+            modal=True,
+            title="Ủng hộ BaroKey",
+            default_width=460,
+            default_height=650,
+        )
+        self.add_css_class("barokey")
+        self.set_resizable(False)
+        self._copy_timer = None
+        self.set_titlebar(make_titlebar(label("Ủng hộ BaroKey", "dialog-title")))
+
+        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        content.set_margin_top(24)
+        content.set_margin_bottom(24)
+        content.set_margin_start(24)
+        content.set_margin_end(24)
+        self.set_child(content)
+
+        header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        heart = label("♥", "donate-heart", xalign=0.5)
+        heart.set_valign(Gtk.Align.CENTER)
+        header.append(heart)
+        header_text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        header_text.append(label("Ủng hộ BaroKey", "donate-title"))
+        header_text.append(
+            label(
+                "Quét mã VietQR để gửi đóng góp cho dự án.",
+                "donate-sub",
+                wrap=True,
+            )
+        )
+        header.append(header_text)
+        content.append(header)
+
+        qr_card = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        qr_card.add_css_class("qr-card")
+        qr_card.set_halign(Gtk.Align.CENTER)
+        qr_card.append(donate_qr_image(220))
+        content.append(qr_card)
+
+        account = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        account.add_css_class("account-card")
+        details = Gtk.Grid()
+        details.set_row_spacing(6)
+        details.set_column_spacing(24)
+        details.attach(label("Ngân hàng", "account-label"), 0, 0, 1, 1)
+        details.attach(label(DONATE_BANK, "account-value"), 1, 0, 1, 1)
+        details.attach(label("Chủ tài khoản", "account-label"), 0, 1, 1, 1)
+        details.attach(label(DONATE_ACCOUNT_NAME, "account-value"), 1, 1, 1, 1)
+        account.append(details)
+
+        number_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        number_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        number_box.append(label("Số tài khoản", "account-label"))
+        number_box.append(label(DONATE_ACCOUNT_NUMBER, "account-number", selectable=True))
+        number_row.append(number_box)
+        spacer_box = Gtk.Box()
+        spacer_box.set_hexpand(True)
+        number_row.append(spacer_box)
+        self.copy_button = Gtk.Button(label="Sao chép số tài khoản")
+        self.copy_button.add_css_class("ghost")
+        self.copy_button.set_valign(Gtk.Align.CENTER)
+        self.copy_button.connect("clicked", self._copy_account_number)
+        number_row.append(self.copy_button)
+        account.append(number_row)
+        content.append(account)
+
+        note = label(
+            "BaroKey là dự án mã nguồn mở. Mọi đóng góp đều được trân trọng.",
+            "donate-note",
+            wrap=True,
+            xalign=0.5,
+            justify_center=True,
+        )
+        note.set_halign(Gtk.Align.CENTER)
+        content.append(note)
+
+        close = Gtk.Button(label="Đóng")
+        close.add_css_class("primary")
+        close.set_hexpand(True)
+        close.connect("clicked", lambda *_: self.close())
+        content.append(close)
+
+    def _copy_account_number(self, button: Gtk.Button) -> None:
+        display = Gdk.Display.get_default()
+        if display is not None:
+            provider = Gdk.ContentProvider.new_for_bytes(
+                "text/plain;charset=utf-8",
+                GLib.Bytes.new(DONATE_ACCOUNT_NUMBER.encode("utf-8")),
+            )
+            display.get_clipboard().set_content(provider)
+        button.set_label("Đã sao chép")
+        if self._copy_timer is not None:
+            GLib.source_remove(self._copy_timer)
+        self._copy_timer = GLib.timeout_add(1600, self._reset_copy_label)
+
+    def _reset_copy_label(self) -> bool:
+        self.copy_button.set_label("Sao chép số tài khoản")
+        self._copy_timer = None
+        return False
+
+
+class SettingsWindow(Gtk.ApplicationWindow):
+    def __init__(self, app):
+        super().__init__(application=app)
+        self.add_css_class("barokey")
+        self.set_default_size(1024, 720)
+        self.set_size_request(960, 640)
+        self.set_title(APP_NAME)
+        self.set_default_icon_name("barokey")
+
+        self.app = app
+        self.config = config.load()
+        self._loading = True
+        self._toast_timer = None
+        self._nav_buttons: dict[str, Gtk.Button] = {}
+        self._pages: dict[str, Gtk.Widget] = {}
+        self._method_cards: dict[str, Gtk.Button] = {}
+        self._tone_cards: dict[str, Gtk.Button] = {}
+        self._theme_cards: dict[str, Gtk.Button] = {}
+        self._shortcut_caps: dict[str, Gtk.Box] = {}
+        self._overview_shortcut_caps: dict[str, Gtk.Box] = {}
+
+        Gtk.Window.set_default_icon_name("barokey")
+        self._build_titlebar()
+        self._build_layout()
+        self._build_state_bindings()
+        self._loading = False
+        self._sync_widgets()
+        self._show_page("overview")
+
+    # ------------------------------------------------------------- title bar
+    def _build_titlebar(self) -> None:
+        title = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        logo = logo_image(16)
+        logo.set_valign(Gtk.Align.CENTER)
+        title.append(logo)
+        title.append(label(APP_NAME, "titlebar-name"))
+        title.append(label("- Bộ gõ tiếng Việt cho Linux", "titlebar-sub"))
+        self.set_titlebar(make_titlebar(title))
+
+    # ---------------------------------------------------------------- layout
+    def _build_layout(self) -> None:
+        outer = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+        self.set_child(outer)
+
+        sidebar = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        sidebar.add_css_class("sidebar")
+        sidebar.set_size_request(256, -1)
+
+        brand = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        brand.set_margin_top(24)
+        brand.set_margin_bottom(24)
+        brand.set_margin_start(16)
+        brand.set_margin_end(16)
+        brand.append(logo_image(40))
+        brand_text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        brand_text.set_valign(Gtk.Align.CENTER)
+        brand_text.append(label(APP_NAME, "brand-title"))
+        brand_text.append(label("Bộ gõ tiếng Việt cho Linux", "brand-sub"))
+        brand.append(brand_text)
+        sidebar.append(brand)
+
+        nav = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        nav.set_margin_start(12)
+        nav.set_margin_end(12)
+        for name, text, icon_name in NAV_ITEMS:
+            button = Gtk.Button()
+            button.add_css_class("nav")
+            button.set_hexpand(True)
+            child = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+            icon_widget = icon(icon_name, 18, None)
+            icon_widget.set_valign(Gtk.Align.CENTER)
+            child.append(icon_widget)
+            text_widget = label(text)
+            text_widget.set_valign(Gtk.Align.CENTER)
+            child.append(text_widget)
+            button.set_child(child)
+            button.connect("clicked", self._on_nav_clicked, name)
+            self._nav_buttons[name] = button
+            nav.append(button)
+        sidebar.append(nav)
+
+        sidebar.append(spacer())
+
+        branding = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        branding.add_css_class("branding-card")
+        branding.set_margin_top(12)
+        branding.set_margin_bottom(12)
+        branding.set_margin_start(12)
+        branding.set_margin_end(12)
+        brand_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        brand_row.append(logo_image(24))
+        brand_labels = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        brand_labels.set_valign(Gtk.Align.CENTER)
+        brand_labels.append(label(APP_NAME, "branding-name"))
+        brand_labels.append(label(f"v{__version__}", "branding-version"))
+        brand_row.append(brand_labels)
+        branding.append(brand_row)
+        tagline = label("Gõ tiếng Việt dễ dàng hơn trên Linux", "branding-text", wrap=True)
+        tagline.set_margin_top(8)
+        branding.append(tagline)
+        sidebar.append(branding)
+
+        main = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        main.add_css_class("main-area")
+        main.set_hexpand(True)
+        main.set_vexpand(True)
+
+        self.stack = Gtk.Stack()
+        self.stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
+        self.stack.set_transition_duration(160)
+        self.stack.set_hexpand(True)
+        self.stack.set_vexpand(True)
+        self.stack.set_vhomogeneous(True)
+
+        self._pages["overview"] = self._build_overview()
+        self._pages["method"] = self._build_method_page()
+        self._pages["charset"] = self._build_charset_page()
+        self._pages["options"] = self._build_options_page()
+        self._pages["shortcuts"] = self._build_shortcuts_page()
+        self._pages["appearance"] = self._build_appearance_page()
+        self._pages["about"] = self._build_about_page()
+        for name, page in self._pages.items():
+            self.stack.add_named(page, name)
+
+        scroller = Gtk.ScrolledWindow()
+        scroller.add_css_class("content")
+        scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        scroller.set_hexpand(True)
+        scroller.set_vexpand(True)
+        scroller.set_child(self.stack)
+
+        overlay = Gtk.Overlay()
+        overlay.set_hexpand(True)
+        overlay.set_vexpand(True)
+        overlay.set_child(scroller)
+
+        self.toast = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        self.toast.add_css_class("toast-box")
+        self.toast.append(icon("object-select-symbolic", 16, None))
+        self.toast_label = label("Đã lưu thay đổi", "toast")
+        self.toast.append(self.toast_label)
+        self.toast.set_halign(Gtk.Align.END)
+        self.toast.set_valign(Gtk.Align.END)
+        self.toast.set_margin_end(24)
+        self.toast.set_margin_bottom(24)
+        self.toast.set_visible(False)
+        overlay.add_overlay(self.toast)
+
+        main.append(overlay)
+        outer.append(sidebar)
+        outer.append(main)
+
+    # ---------------------------------------------------------------- helpers
+    def _new_page(self) -> Gtk.Box:
+        page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        page.add_css_class("page")
+        page.set_margin_top(32)
+        page.set_margin_bottom(32)
+        page.set_margin_start(32)
+        page.set_margin_end(32)
+        page.set_vexpand(True)
+        return page
+
+    def _page_header(
+        self,
+        icon_name: str,
+        title: str,
+        subtitle: str | None = None,
+    ) -> Gtk.Box:
+        header = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        title_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        title_row.append(icon(icon_name, 20, "page-icon"))
+        title_row.append(label(title, "page-title"))
+        title_row.set_margin_bottom(8 if subtitle else 24)
+        header.append(title_row)
+        if subtitle:
+            subtitle_label = label(subtitle, "page-subtitle", wrap=True)
+            subtitle_label.set_margin_bottom(24)
+            header.append(subtitle_label)
+        return header
+
+    def _section_heading(self, text: str, badge: str | None = None) -> Gtk.Box:
+        row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        row.append(label(text, "section-heading"))
+        if badge:
+            row.append(label(badge, "badge"))
+        return row
+
+    # --------------------------------------------------------------- overview
+    def _build_overview(self) -> Gtk.Widget:
+        page = self._new_page()
+        page.append(self._page_header("go-home-symbolic", "Tổng quan"))
+
+        body = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=20)
+        body.set_hexpand(True)
+        body.set_valign(Gtk.Align.START)
+
+        left = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=20)
+        left.set_hexpand(True)
+
+        # Big toggle card
+        big = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        big.add_css_class("card")
+        big.add_css_class("big")
+        big.set_size_request(-1, 160)
+        big_inner = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=16)
+        big_inner.set_valign(Gtk.Align.CENTER)
+        big_labels = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        big_labels.set_hexpand(True)
+        big_labels.append(label("Bật bộ gõ tiếng Việt", "big-title"))
+        status_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        self.status_dot = Gtk.Box()
+        self.status_dot.add_css_class("status-dot")
+        self.status_dot.set_valign(Gtk.Align.CENTER)
+        status_row.append(self.status_dot)
+        self.big_status = label("Đang hoạt động", "big-status")
+        status_row.append(self.big_status)
+        big_labels.append(status_row)
+        big_inner.append(big_labels)
+
+        shell = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        shell.add_css_class("big-switch-shell")
+        shell.set_valign(Gtk.Align.CENTER)
+        self.status_switch = Gtk.Switch()
+        self.status_switch.add_css_class("big")
+        self.status_switch.set_valign(Gtk.Align.CENTER)
+        shell.append(self.status_switch)
+        big_inner.append(shell)
+        big.append(big_inner)
+        left.append(big)
+
+        stats_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=20)
+        stats_row.set_hexpand(True)
+        stats_row.append(self._stats_card())
+        stats_row.append(self._quick_stats_card())
+        left.append(stats_row)
+        body.append(left)
+
+        # Right column
+        right = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=20)
+        right.set_size_request(220, -1)
+
+        small_grid = Gtk.Grid()
+        small_grid.set_row_spacing(16)
+        small_grid.set_column_spacing(0)
+        small_grid.set_row_homogeneous(True)
+        small_grid.set_size_request(-1, 160)
+        small_grid.attach(self._small_status_card("input-keyboard-symbolic", "Kiểu gõ", "method_value", "Telex"), 0, 0, 1, 1)
+        small_grid.attach(self._small_status_card("font-x-generic-symbolic", "Bảng mã", "charset_value", "Unicode"), 0, 1, 1, 1)
+        right.append(small_grid)
+
+        shortcuts_card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        shortcuts_card.add_css_class("card")
+        shortcuts_card.add_css_class("shortcuts")
+        shortcuts_card.set_vexpand(True)
+        heading = label("Phím tắt nhanh", "card-heading")
+        heading.set_margin_bottom(16)
+        shortcuts_card.append(heading)
+
+        toggle_cap_box = Gtk.Box()
+        self._overview_shortcut_caps["shortcut_toggle"] = toggle_cap_box
+        fill_keycaps(toggle_cap_box, self.config["shortcut_toggle"])
+        shortcuts_card.append(self._shortcut_group("Chuyển đổi Việt / Anh", toggle_cap_box))
+        shortcuts_card.append(separator())
+
+        enable_cap_box = Gtk.Box()
+        self._overview_shortcut_caps["shortcut_enable"] = enable_cap_box
+        fill_keycaps(enable_cap_box, self.config["shortcut_enable"])
+        shortcuts_card.append(self._shortcut_group("Bật / Tắt bộ gõ", enable_cap_box))
+        right.append(shortcuts_card)
+
+        body.append(right)
+        page.append(body)
+        page.append(spacer())
+
+        quote = label(
+            '"BaroKey - Gõ tiếng Việt dễ dàng hơn trên Linux"',
+            "quote",
+            xalign=0.5,
+        )
+        quote.set_halign(Gtk.Align.CENTER)
+        quote.set_margin_top(24)
+        page.append(quote)
+        return page
+
+    def _stats_card(self) -> Gtk.Widget:
+        card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        card.add_css_class("card")
+        card.add_css_class("stats")
+        card.add_css_class("hoverable")
+        card.set_size_request(-1, 144)
+        card.set_hexpand(True)
+
+        heading = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        heading.append(icon("power-profile-balanced-symbolic", 18))
+        heading.append(label("Thống kê", "card-heading"))
+        heading.set_margin_bottom(16)
+        card.append(heading)
+
+        row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        self.stat_bar = Gtk.Box()
+        self.stat_bar.add_css_class("stat-bar")
+        self.stat_bar.set_valign(Gtk.Align.CENTER)
+        row.append(self.stat_bar)
+        values = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        values.append(label("Trạng thái", "card-label"))
+        self.stats_value = label("Đang gõ tiếng Việt", "card-value-green")
+        values.append(self.stats_value)
+        row.append(values)
+        card.append(row)
+        return card
+
+    def _quick_stats_card(self) -> Gtk.Widget:
+        card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        card.add_css_class("card")
+        card.add_css_class("stats")
+        card.add_css_class("hoverable")
+        card.set_size_request(-1, 144)
+        card.set_hexpand(True)
+
+        heading = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        heading.append(icon("power-profile-performance-symbolic", 18))
+        heading.append(label("Thống kê nhanh", "card-heading"))
+        heading.set_margin_bottom(16)
+        card.append(heading)
+
+        self.quick_text = label("Tùy chọn chưa được bật.", "quick-text", wrap=True)
+        self.quick_text.set_margin_top(8)
+        card.append(self.quick_text)
+        return card
+
+    def _small_status_card(
+        self,
+        icon_name: str,
+        caption: str,
+        attr: str,
+        value: str,
+    ) -> Gtk.Widget:
+        card = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=16)
+        card.add_css_class("card")
+        card.add_css_class("small")
+        card.add_css_class("hoverable")
+        card.set_hexpand(True)
+
+        tile = Gtk.Box()
+        tile.add_css_class("icon-tile")
+        tile.set_size_request(40, 40)
+        tile.set_halign(Gtk.Align.START)
+        tile.set_valign(Gtk.Align.CENTER)
+        tile.append(icon(icon_name, 18))
+        card.append(tile)
+
+        labels = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        labels.append(label(caption, "card-label"))
+        value_label = label(value, "card-value")
+        setattr(self, attr, value_label)
+        labels.append(value_label)
+        card.append(labels)
+        return card
+
+    def _shortcut_group(self, title: str, caps: Gtk.Widget) -> Gtk.Box:
+        group = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        group.add_css_class("shortcut-group")
+        group.append(label(title, "shortcut-label"))
+        group.append(caps)
+        return group
+
+    # ---------------------------------------------------------------- method
+    def _build_method_page(self) -> Gtk.Widget:
+        page = self._new_page()
+        page.append(
+            self._page_header(
+                "input-keyboard-symbolic",
+                "Kiểu gõ",
+                "Chọn kiểu gõ phù hợp với thói quen của bạn",
+            )
+        )
+
+        methods = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
+        telex_right = Gtk.Box()
+        add_key_grid(
+            telex_right,
+            (
+                ("s", "d", "f", "g", "h", "j", "k", "l"),
+                ("a", "o", "e", "u", "i"),
+            ),
+        )
+        telex_card, *_ = radio_card(
+            "Telex",
+            'Gõ theo kiểu Telex (phổ biến, dễ nhớ). Ví dụ: hoa s -> hóa',
+            active=self.config["method"] == "telex",
+            right=telex_right,
+        )
+        telex_card.connect("clicked", self._on_method_clicked, "telex")
+        self._method_cards["telex"] = telex_card
+        methods.append(telex_card)
+
+        vni_right = Gtk.Box()
+        add_key_grid(vni_right, (tuple("1234567890"),))
+        vni_card, *_ = radio_card(
+            "VNI",
+            'Gõ theo kiểu VNI (quen thuộc với người dùng cũ). Ví dụ: hoa 1 -> hóa',
+            active=self.config["method"] == "vni",
+            right=vni_right,
+        )
+        vni_card.connect("clicked", self._on_method_clicked, "vni")
+        self._method_cards["vni"] = vni_card
+        methods.append(vni_card)
+        page.append(methods)
+
+        tone_heading = self._section_heading("Kiểu đặt dấu")
+        tone_heading.set_margin_top(24)
+        tone_heading.set_margin_bottom(16)
+        page.append(tone_heading)
+
+        tone_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=16)
+        modern, *_ = radio_card(
+            "Kiểu mới",
+            "Vị trí dấu hiện đại: hoà, thuỷ",
+            active=self.config["tone_style"] == "modern",
+        )
+        modern.set_hexpand(True)
+        modern.connect("clicked", self._on_tone_clicked, "modern")
+        self._tone_cards["modern"] = modern
+        tone_row.append(modern)
+
+        old, *_ = radio_card(
+            "Kiểu cũ",
+            "Vị trí dấu truyền thống: hòa, thủy",
+            active=self.config["tone_style"] == "old",
+        )
+        old.set_hexpand(True)
+        old.connect("clicked", self._on_tone_clicked, "old")
+        self._tone_cards["old"] = old
+        tone_row.append(old)
+        page.append(tone_row)
+
+        page.append(spacer())
+        banner = info_banner(
+            "Bạn có thể thay đổi kiểu gõ bất cứ lúc nào. Các ứng dụng đang mở sẽ áp dụng ngay."
+        )
+        banner.set_margin_top(24)
+        page.append(banner)
+        return page
+
+    # --------------------------------------------------------------- charset
+    def _build_charset_page(self) -> Gtk.Widget:
+        page = self._new_page()
+        page.append(
+            self._page_header(
+                "font-x-generic-symbolic",
+                "Bảng mã",
+                "Chọn bảng mã tiếng Việt sử dụng",
+            )
+        )
+
+        body = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=24)
+        body.set_hexpand(True)
+
+        choices = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
+        choices.set_hexpand(True)
+
+        unicode_card, *_ = radio_card(
+            "Unicode",
+            "Khuyến nghị (hỗ trợ đầy đủ)",
+            active=True,
+        )
+        unicode_card.connect("clicked", self._on_charset_clicked, "unicode")
+        self.charset_card = unicode_card
+        choices.append(unicode_card)
+
+        tcvn, *_ = radio_card(
+            "TCVN3",
+            "Dành cho phần mềm cũ",
+            enabled=False,
+            badge="Chưa hỗ trợ",
+        )
+        choices.append(tcvn)
+
+        vni, *_ = radio_card(
+            "VNI Windows",
+            "Tương thích tốt với Windows",
+            enabled=False,
+            badge="Chưa hỗ trợ",
+        )
+        choices.append(vni)
+        body.append(choices)
+
+        preview = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        preview.add_css_class("card")
+        preview.set_size_request(256, -1)
+        preview_title = label("Ví dụ", "card-heading")
+        preview_title.set_margin_bottom(16)
+        preview.append(preview_title)
+        preview.append(separator())
+
+        sample = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        sample.add_css_class("radio-right")
+        sample.set_margin_top(4)
+        sample.set_margin_bottom(16)
+        sample.append(label("Tiếng Việt", "card-value"))
+        sample.append(label("Hello", "card-label"))
+        sample.append(label("Tiếng Việt", "card-value-green"))
+        preview.append(sample)
+
+        selected = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        selected.append(icon("object-select-symbolic", 14, None))
+        selected.append(label("Unicode (được chọn)", "option-sub"))
+        preview.append(selected)
+        body.append(preview)
+        page.append(body)
+
+        page.append(spacer())
+        banner = info_banner(
+            "Unicode là bảng mã được khuyến nghị sử dụng hiện nay. "
+            "TCVN3 và VNI Windows chưa được hỗ trợ trên Linux."
+        )
+        banner.set_margin_top(24)
+        page.append(banner)
+        return page
+
+    # --------------------------------------------------------------- options
+    def _build_options_page(self) -> Gtk.Widget:
+        page = self._new_page()
+        page.append(
+            self._page_header(
+                "preferences-system-symbolic",
+                "Tùy chọn",
+                "Tùy chỉnh các tính năng hỗ trợ gõ tiếng Việt",
+            )
+        )
+
+        options = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+
+        self.free_marking_switch = Gtk.Switch()
+        options.append(
+            option_card(
+                "Bỏ dấu tự do",
+                'Tự động bỏ dấu khi gõ (ví dụ: "hoas" → "hóa")',
+                self.free_marking_switch,
+            )
+        )
+
+        self.go_tat_switch = Gtk.Switch()
+        self.go_tat_switch.set_sensitive(False)
+        options.append(
+            option_card(
+                "Cho phép gõ tắt",
+                'Hỗ trợ gõ tắt (vd: "td" → "thể", "khong" → "kg")',
+                self.go_tat_switch,
+                badge="Chưa hỗ trợ",
+            )
+        )
+
+        self.spell_check_switch = Gtk.Switch()
+        self.spell_check_switch.set_sensitive(False)
+        options.append(
+            option_card(
+                "Sửa lỗi chính tả",
+                "Tự động sửa một số lỗi chính tả thường gặp",
+                self.spell_check_switch,
+                badge="Chưa hỗ trợ",
+            )
+        )
+
+        self.auto_restore_switch = Gtk.Switch()
+        options.append(
+            option_card(
+                "Khôi phục phím tiếng Anh",
+                "Giữ nguyên phím khi gõ tiếng Anh",
+                self.auto_restore_switch,
+            )
+        )
+
+        page.append(options)
+        return page
+
+    # ------------------------------------------------------------- shortcuts
+    def _build_shortcuts_page(self) -> Gtk.Widget:
+        page = self._new_page()
+        page.append(
+            self._page_header(
+                "preferences-desktop-keyboard-symbolic",
+                "Phím tắt",
+                "Thiết lập phím tắt nhanh cho BaroKey",
+            )
+        )
+
+        rows = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+
+        for key, title, icon_name, presets in (
+            (
+                "shortcut_toggle",
+                "Chuyển đổi Việt / Anh",
+                "input-keyboard-symbolic",
+                SHORTCUT_PRESETS["toggle"],
+            ),
+            (
+                "shortcut_enable",
+                "Bật / Tắt bộ gõ",
+                "power-profile-performance-symbolic",
+                SHORTCUT_PRESETS["enable"],
+            ),
+        ):
+            card = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=16)
+            card.add_css_class("card")
+            card.add_css_class("option-card")
+            card.set_hexpand(True)
+
+            tile = Gtk.Box()
+            tile.add_css_class("icon-tile")
+            tile.set_size_request(40, 40)
+            tile.set_valign(Gtk.Align.CENTER)
+            tile.append(icon(icon_name, 18))
+            card.append(tile)
+
+            title_label = label(title, "option-title")
+            title_label.set_hexpand(True)
+            title_label.set_valign(Gtk.Align.CENTER)
+            card.append(title_label)
+
+            caps_box = Gtk.Box()
+            caps_box.set_valign(Gtk.Align.CENTER)
+            self._shortcut_caps[key] = caps_box
+            fill_keycaps(caps_box, self.config[key], large=True)
+            card.append(caps_box)
+
+            button = Gtk.Button(label="Thay đổi")
+            button.add_css_class("primary")
+            button.set_valign(Gtk.Align.CENTER)
+            button.connect("clicked", self._edit_shortcut, key, title, presets)
+            card.append(button)
+            rows.append(card)
+
+        # The design also lists a settings shortcut; BaroKey has no global
+        # accelerator for it yet, so the row is marked instead of pretending.
+        settings_card = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=16)
+        settings_card.add_css_class("card")
+        settings_card.add_css_class("option-card")
+        settings_card.set_hexpand(True)
+        settings_tile = Gtk.Box()
+        settings_tile.add_css_class("icon-tile")
+        settings_tile.set_size_request(40, 40)
+        settings_tile.set_valign(Gtk.Align.CENTER)
+        settings_tile.append(icon("preferences-system-symbolic", 18))
+        settings_card.append(settings_tile)
+        settings_title = label("Mở cài đặt", "option-title")
+        settings_title.set_hexpand(True)
+        settings_title.set_valign(Gtk.Align.CENTER)
+        settings_card.append(settings_title)
+        settings_keys = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        settings_keys.set_valign(Gtk.Align.CENTER)
+        for index, key in enumerate(("Ctrl", ",")):
+            if index:
+                settings_keys.append(label("+", "key-plus"))
+            settings_keys.append(keycap(key, large=True))
+        settings_card.append(settings_keys)
+        settings_card.append(label("Chưa hỗ trợ", "badge"))
+        rows.append(settings_card)
+
+        page.append(rows)
+        page.append(spacer())
+        banner = info_banner(
+            "Lưu ý: Một số phím tắt có thể bị xung đột với ứng dụng khác trong hệ thống. "
+            "Chuyển nguồn nhập bằng Super + Space do IBus quản lý."
+        )
+        banner.set_margin_top(24)
+        page.append(banner)
+        return page
+
+    # ------------------------------------------------------------ appearance
+    def _build_appearance_page(self) -> Gtk.Widget:
+        page = self._new_page()
+        page.append(
+            self._page_header(
+                "applications-graphics-symbolic",
+                "Giao diện",
+                "Tùy chỉnh giao diện của BaroKey",
+            )
+        )
+
+        theme_heading = self._section_heading("Chủ đề")
+        theme_heading.set_margin_bottom(16)
+        page.append(theme_heading)
+
+        theme_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=20)
+        theme_row.set_hexpand(True)
+        for value, title, icon_name, variant in (
+            ("light", "Sáng", "weather-clear-symbolic", "light"),
+            ("dark", "Tối", "weather-clear-night-symbolic", "dark"),
+            ("auto", "Tự động", "video-display-symbolic", "auto"),
+        ):
+            button = self._theme_button(title, icon_name, variant)
+            button.connect("clicked", self._on_theme_clicked, value)
+            self._theme_cards[value] = button
+            theme_row.append(button)
+        page.append(theme_row)
+
+        display_heading = self._section_heading("Kiểu hiển thị", "Chưa hỗ trợ")
+        display_heading.set_margin_top(32)
+        display_heading.set_margin_bottom(16)
+        page.append(display_heading)
+
+        display_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=16)
+        full, *_ = radio_card("Biểu tượng đầy đủ", active=True, enabled=False)
+        full.set_hexpand(True)
+        compact, *_ = radio_card("Chỉ biểu tượng (nhỏ gọn)", enabled=False)
+        compact.set_hexpand(True)
+        display_row.append(full)
+        display_row.append(compact)
+        page.append(display_row)
+
+        notif_heading = self._section_heading("Thông báo")
+        notif_heading.set_margin_top(32)
+        notif_heading.set_margin_bottom(16)
+        page.append(notif_heading)
+
+        self.notifications_switch = Gtk.Switch()
+        page.append(
+            option_card(
+                "Thông báo khi chuyển chế độ",
+                "Hiện thông báo khi bật/tắt bộ gõ hoặc chuyển Việt / Anh",
+                self.notifications_switch,
+            )
+        )
+
+        page.append(spacer())
+        banner = info_banner(
+            "Giao diện sẽ được áp dụng ngay lập tức cho toàn bộ ứng dụng. "
+            "Chế độ Tự động đi theo cài đặt sáng/tối của GNOME."
+        )
+        banner.set_margin_top(24)
+        page.append(banner)
+        return page
+
+    def _theme_button(self, title: str, icon_name: str, variant: str) -> Gtk.Button:
+        button = Gtk.Button()
+        button.add_css_class("theme-card")
+        button.set_hexpand(True)
+
+        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+
+        preview = Gtk.Box()
+        preview.add_css_class("theme-preview")
+        preview.add_css_class(variant)
+        preview.set_size_request(-1, 112)
+
+        mini = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+        mini.add_css_class("mini-window")
+        mini.add_css_class("light" if variant == "light" else "dark")
+        mini.set_size_request(-1, 64)
+        mini.set_valign(Gtk.Align.CENTER)
+        mini.set_margin_start(12)
+        mini.set_margin_end(12)
+
+        sidebar = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        sidebar.add_css_class("mini-sidebar")
+        sidebar.add_css_class("light" if variant == "light" else "dark")
+        sidebar.set_size_request(58, -1)
+        sidebar.set_margin_top(8)
+        sidebar.set_margin_bottom(8)
+        sidebar.set_margin_start(8)
+        line = Gtk.Box()
+        line.add_css_class("mini-line")
+        line.add_css_class("light" if variant == "light" else "dark")
+        line.set_size_request(38, 4)
+        sidebar.append(line)
+        line2 = Gtk.Box()
+        line2.add_css_class("mini-line")
+        line2.add_css_class("light" if variant == "light" else "dark")
+        line2.set_size_request(26, 4)
+        sidebar.append(line2)
+        mini.append(sidebar)
+
+        mini_body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        mini_body.set_margin_top(8)
+        mini_body.set_margin_bottom(8)
+        mini_body.set_margin_start(8)
+        mini_body.set_margin_end(8)
+        mini_body.set_hexpand(True)
+        blue = Gtk.Box()
+        blue.add_css_class("mini-line")
+        blue.add_css_class("blue")
+        blue.set_size_request(54, 6)
+        mini_body.append(blue)
+        block = Gtk.Box()
+        block.add_css_class("mini-line")
+        block.add_css_class("light" if variant == "light" else "dark")
+        block.set_size_request(-1, 18)
+        mini_body.append(block)
+        mini.append(mini_body)
+        preview.append(mini)
+        content.append(preview)
+
+        caption = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        caption.set_halign(Gtk.Align.CENTER)
+        caption.set_margin_top(12)
+        caption.append(icon(icon_name, 16, None))
+        caption.append(label(title, "theme-label"))
+        content.append(caption)
+
+        button.set_child(content)
+        return button
+
+    # ----------------------------------------------------------------- about
+    def _build_about_page(self) -> Gtk.Widget:
+        page = self._new_page()
+        page.append(
+            self._page_header(
+                "help-about-symbolic",
+                "Thông tin",
+                "Phiên bản và thông tin ứng dụng",
+            )
+        )
+
+        card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        card.add_css_class("card")
+        card.add_css_class("about-card")
+        card.set_halign(Gtk.Align.FILL)
+
+        logo = logo_image(96)
+        logo.set_halign(Gtk.Align.CENTER)
+        logo.set_margin_bottom(24)
+        card.append(logo)
+
+        name = label(APP_NAME, "about-name", xalign=0.5)
+        name.set_halign(Gtk.Align.CENTER)
+        name.set_margin_bottom(8)
+        card.append(name)
+
+        version = label(f"Phiên bản {__version__}", "about-version", xalign=0.5)
+        version.set_halign(Gtk.Align.CENTER)
+        version.set_margin_bottom(16)
+        card.append(version)
+
+        description = label(
+            "Bộ gõ tiếng Việt dễ dàng hơn trên Linux. Hỗ trợ đa dạng bảng mã, "
+            "kiểu gõ và tối ưu hóa trải nghiệm người dùng với giao diện hiện đại.",
+            "about-desc",
+            wrap=True,
+            xalign=0.5,
+            justify_center=True,
+        )
+        description.set_max_width_chars(58)
+        description.set_halign(Gtk.Align.CENTER)
+        description.set_margin_bottom(32)
+        card.append(description)
+
+        links = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=16)
+        links.set_halign(Gtk.Align.CENTER)
+        for text, icon_name, callback, value in (
+            ("GitHub", "insert-link-symbolic", self._open_uri, SITE_URL),
+            ("Trang chủ", "go-home-symbolic", self._open_uri, SITE_URL),
+            ("Đóng góp", "system-users-symbolic", self._open_donate, None),
+        ):
+            button = Gtk.Button()
+            button.add_css_class("about-link")
+            child = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+            child.append(icon(icon_name, 18, None))
+            child.append(label(text))
+            button.set_child(child)
+            if value is None:
+                button.connect("clicked", callback)
+            else:
+                button.connect("clicked", callback, value)
+            links.append(button)
+        card.append(links)
+        page.append(card)
+
+        page.append(spacer())
+        copyright_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        copyright_box.set_halign(Gtk.Align.CENTER)
+        copyright_box.set_margin_top(24)
+        copyright_box.append(label("Thông tin bản quyền", "copyright", xalign=0.5))
+        copyright_box.append(
+            label(
+                f"© 2026 {APP_NAME}. Phát triển bởi cộng đồng nguồn mở.",
+                "copyright-small",
+                xalign=0.5,
+            )
+        )
+        page.append(copyright_box)
+        return page
+
+    # ---------------------------------------------------------------- state
+    def _build_state_bindings(self) -> None:
+        self.status_switch.connect("notify::active", self._on_status_changed)
+        self.free_marking_switch.connect("notify::active", self._on_free_marking_changed)
+        self.auto_restore_switch.connect("notify::active", self._on_auto_restore_changed)
+        self.notifications_switch.connect(
+            "notify::active", self._on_notifications_changed
+        )
+
+    def _sync_widgets(self) -> None:
+        self._loading = True
+        cfg = self.config
+        self.status_switch.set_active(bool(cfg["start_enabled"]))
+        self.free_marking_switch.set_active(bool(cfg["free_marking"]))
+        self.auto_restore_switch.set_active(bool(cfg["auto_restore"]))
+        self.notifications_switch.set_active(bool(cfg.get("notifications", True)))
+        self.go_tat_switch.set_active(False)
+        self.spell_check_switch.set_active(False)
+        self._sync_method()
+        self._sync_tone()
+        self._sync_theme()
+        self._refresh_status()
+        self._refresh_quick_stats()
+        self._refresh_shortcut_labels()
+        self._loading = False
+
+    def _sync_method(self) -> None:
+        for value, card in self._method_cards.items():
+            set_radio_active(card, value == self.config["method"])
+
+    def _sync_tone(self) -> None:
+        for value, card in self._tone_cards.items():
+            set_radio_active(card, value == self.config["tone_style"])
+
+    def _sync_theme(self) -> None:
+        for value, card in self._theme_cards.items():
+            if value == self.config["theme"]:
+                card.add_css_class("selected")
+            else:
+                card.remove_css_class("selected")
+
+    def _refresh_status(self) -> None:
+        enabled = bool(self.config["start_enabled"])
+        vietnamese = not bool(self.config["english_mode"])
+        if enabled:
+            self.status_dot.remove_css_class("off")
+            self.big_status.set_text("Đang hoạt động")
+            self.stat_bar.remove_css_class("off")
+            if vietnamese:
+                self.stats_value.set_text("Đang gõ tiếng Việt")
+                self.stats_value.remove_css_class("card-value-blue")
+                self.stats_value.remove_css_class("card-value-off")
+                self.stats_value.add_css_class("card-value-green")
+            else:
+                self.stats_value.set_text("Đang gõ tiếng Anh")
+                self.stats_value.remove_css_class("card-value-green")
+                self.stats_value.remove_css_class("card-value-off")
+                self.stats_value.add_css_class("card-value-blue")
+        else:
+            self.status_dot.add_css_class("off")
+            self.big_status.set_text("Đã tắt")
+            self.stat_bar.add_css_class("off")
+            self.stats_value.set_text("Đã tắt")
+            self.stats_value.remove_css_class("card-value-green")
+            self.stats_value.remove_css_class("card-value-blue")
+            self.stats_value.add_css_class("card-value-off")
+        self.method_value.set_text("VNI" if self.config["method"] == "vni" else "Telex")
+        self.charset_value.set_text("Unicode")
+
+    def _refresh_quick_stats(self) -> None:
+        active = []
+        if self.config.get("free_marking", True):
+            active.append("Bỏ dấu tự do")
+        if self.config.get("auto_restore", True):
+            active.append("Khôi phục tiếng Anh")
+        if self.config.get("notifications", True):
+            active.append("Thông báo")
+        if not active:
+            self.quick_text.set_text("Tùy chọn chưa được bật.")
+        else:
+            self.quick_text.set_text("Đang bật: " + " · ".join(active))
+
+    def _refresh_shortcut_labels(self) -> None:
+        for key, caps in self._shortcut_caps.items():
+            fill_keycaps(caps, self.config[key], large=True)
+        for key, caps in self._overview_shortcut_caps.items():
+            fill_keycaps(caps, self.config[key])
+
+    def _save(self, message: str | None = None) -> None:
+        config.save(self.config)
+        self._refresh_quick_stats()
+        if message:
+            self._show_toast(message)
+
+    def _show_toast(self, message: str) -> None:
+        self.toast_label.set_text(message)
+        self.toast.set_visible(True)
+        if self._toast_timer is not None:
+            GLib.source_remove(self._toast_timer)
+        self._toast_timer = GLib.timeout_add(1900, self._hide_toast)
+
+    def _hide_toast(self) -> bool:
+        self.toast.set_visible(False)
+        self._toast_timer = None
+        return False
+
+    # ------------------------------------------------------------- callbacks
+    def _on_nav_clicked(self, _button: Gtk.Button, name: str) -> None:
+        self._show_page(name)
+
+    def _show_page(self, name: str) -> None:
+        if name not in self._pages:
+            return
+        self.stack.set_visible_child_name(name)
+        for key, button in self._nav_buttons.items():
+            if key == name:
+                button.add_css_class("current")
+            else:
+                button.remove_css_class("current")
+
+    def _on_status_changed(self, switch: Gtk.Switch, _pspec=None) -> None:
+        if self._loading:
+            return
+        active = bool(switch.get_active())
+        self.config["start_enabled"] = active
+        if not active:
+            self.config["english_mode"] = False
+        self._refresh_status()
+        self._save("Đã bật bộ gõ tiếng Việt" if active else "Đã tắt bộ gõ tiếng Việt")
+        if self.config.get("notifications", True):
+            if active:
+                notify.send(
+                    "Đã bật bộ gõ tiếng Việt",
+                    "BaroKey đã sẵn sàng hoạt động.",
+                )
+            else:
+                notify.send(
+                    "Đã tắt bộ gõ tiếng Việt",
+                    f"Nhấn {notify.shortcut_label(self.config['shortcut_enable'])} "
+                    "để bật lại.",
+                )
+
+    def _on_method_clicked(self, _button: Gtk.Button, value: str) -> None:
+        if self._loading:
+            return
+        self.config["method"] = value
+        self._sync_method()
+        self._refresh_status()
+        self._save("Đã đổi kiểu gõ")
+
+    def _on_tone_clicked(self, _button: Gtk.Button, value: str) -> None:
+        if self._loading:
+            return
+        self.config["tone_style"] = value
+        self._sync_tone()
+        self._save("Đã đổi kiểu đặt dấu")
+
+    def _on_charset_clicked(self, _button: Gtk.Button, _value: str) -> None:
+        if self._loading:
+            return
+        set_radio_active(self.charset_card, True)
+        self._save("BaroKey đang dùng bảng mã Unicode")
+
+    def _on_free_marking_changed(self, switch: Gtk.Switch, _pspec=None) -> None:
+        if self._loading:
+            return
+        self.config["free_marking"] = bool(switch.get_active())
+        self._save("Đã cập nhật tùy chọn bỏ dấu tự do")
+
+    def _on_auto_restore_changed(self, switch: Gtk.Switch, _pspec=None) -> None:
+        if self._loading:
+            return
+        self.config["auto_restore"] = bool(switch.get_active())
+        self._save("Đã cập nhật khôi phục phím tiếng Anh")
+
+    def _on_notifications_changed(self, switch: Gtk.Switch, _pspec=None) -> None:
+        if self._loading:
+            return
+        self.config["notifications"] = bool(switch.get_active())
+        self._save("Đã cập nhật thông báo")
+
+    def _edit_shortcut(self, _button, key: str, title: str, presets) -> None:
+        dialog = ShortcutDialog(
+            self,
+            title,
+            presets,
+            self.config.get(key, presets[0][0]),
+            lambda spec: self._set_shortcut(key, spec),
+        )
+        dialog.present()
+
+    def _set_shortcut(self, key: str, spec: str) -> None:
+        self.config[key] = spec
+        self._refresh_shortcut_labels()
+        self._save("Đã cập nhật phím tắt")
+
+    def _on_theme_clicked(self, _button, theme: str) -> None:
+        self.config["theme"] = theme
+        self._sync_theme()
+        self.app.apply_theme(theme)
+        self._save("Đã đổi giao diện")
+
+    def _open_uri(self, _button, uri: str) -> None:
+        Gtk.show_uri(self, uri, Gdk.CURRENT_TIME)
+
+    def _open_donate(self, _button) -> None:
+        DonateDialog(self).present()
+
+
+class BaroKeyApp(Gtk.Application):
     def __init__(self):
-        super().__init__(application_id="io.github.baro.Settings")
+        super().__init__(application_id=APP_ID)
         self.window = None
+        self.css_provider = Gtk.CssProvider()
+        self._css_added = False
+        self._interface_settings = None
+        self._applying = False
+
+    def do_startup(self):
+        Gtk.Application.do_startup(self)
+        GLib.set_application_name(APP_NAME)
+        GLib.set_prgname(APP_ID)
+        Gtk.Window.set_default_icon_name("barokey")
+        self.apply_theme(config.load().get("theme", "dark"))
+        try:
+            self._interface_settings = Gio.Settings.new("org.gnome.desktop.interface")
+            self._interface_settings.connect(
+                "changed::color-scheme", self._on_system_theme_changed
+            )
+        except Exception:
+            self._interface_settings = None
+        gtk_settings = Gtk.Settings.get_default()
+        if gtk_settings is not None:
+            gtk_settings.connect(
+                "notify::gtk-application-prefer-dark-theme",
+                self._on_system_theme_changed,
+            )
+
+    def _on_system_theme_changed(self, *_args):
+        if self.window is not None and self.window.config.get("theme") == "auto":
+            self.apply_theme("auto")
+
+    def apply_theme(self, theme: str) -> None:
+        if self._applying:
+            return
+        self._applying = True
+        resolved = theme
+        if theme not in {"light", "dark"}:
+            resolved = "dark" if prefers_dark() else "light"
+        palette = DARK if resolved == "dark" else LIGHT
+        gtk_settings = Gtk.Settings.get_default()
+        if gtk_settings is not None:
+            gtk_settings.props.gtk_application_prefer_dark_theme = resolved == "dark"
+        try:
+            self.css_provider.load_from_data(CSS.substitute(**palette).encode("utf-8"))
+        except GLib.Error as error:
+            print(f"BaroKey: CSS error: {error}", file=sys.stderr)
+        display = Gdk.Display.get_default()
+        if display is not None and not self._css_added:
+            # BaroKey has its own visual language.  Use a priority above the
+            # user's gtk.css so classes such as "sidebar", "card" and
+            # "keycap" do not get repainted by a desktop theme (Adwaita,
+            # Yaru, MacTahoe, ...) and break the layout.
+            Gtk.StyleContext.add_provider_for_display(
+                display,
+                self.css_provider,
+                Gtk.STYLE_PROVIDER_PRIORITY_USER + 1,
+            )
+            self._css_added = True
+        self._applying = False
 
     def do_activate(self):
         if self.window is None:
@@ -26,93 +2551,9 @@ class BaroSettings(Gtk.Application):
         self.window.present()
 
 
-class SettingsWindow(Gtk.ApplicationWindow):
-    def __init__(self, app):
-        super().__init__(application=app, title="BARO — Bộ gõ tiếng Việt")
-        self.set_default_size(420, -1)
-
-        self.config = config.load()
-
-        header = Gtk.HeaderBar()
-        self.set_titlebar(header)
-
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=18)
-        box.set_margin_top(24)
-        box.set_margin_bottom(24)
-        box.set_margin_start(24)
-        box.set_margin_end(24)
-        self.set_child(box)
-
-        title = Gtk.Label(label="BARO")
-        title.add_css_class("title-1")
-        title.set_xalign(0)
-        box.append(title)
-
-        subtitle = Gtk.Label(label="Bộ gõ tiếng Việt cho Linux")
-        subtitle.add_css_class("dim-label")
-        subtitle.set_xalign(0)
-        box.append(subtitle)
-
-        box.append(Gtk.Separator())
-
-        method_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
-        method_label = Gtk.Label(label="Kiểu gõ")
-        method_label.set_xalign(0)
-        method_label.set_hexpand(True)
-        self.method = Gtk.DropDown.new_from_strings(["Telex", "VNI"])
-        self.method.set_selected(0 if self.config["method"] == "telex" else 1)
-        method_box.append(method_label)
-        method_box.append(self.method)
-        box.append(method_box)
-
-        style_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
-        style_label = Gtk.Label(label="Vị trí dấu thanh")
-        style_label.set_xalign(0)
-        style_label.set_hexpand(True)
-        self.style = Gtk.DropDown.new_from_strings(["Hiện đại (hoà)", "Cổ điển (hòa)"])
-        self.style.set_selected(0 if self.config["tone_style"] == "modern" else 1)
-        style_box.append(style_label)
-        style_box.append(self.style)
-        box.append(style_box)
-
-        start_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
-        start_label = Gtk.Label(label="Khởi động ở chế độ tiếng Việt")
-        start_label.set_xalign(0)
-        start_label.set_hexpand(True)
-        self.start_enabled = Gtk.Switch()
-        self.start_enabled.set_active(bool(self.config["start_enabled"]))
-        start_box.append(start_label)
-        start_box.append(self.start_enabled)
-        box.append(start_box)
-
-        hint = Gtk.Label(
-            label="Chuyển Việt/Anh: Ctrl + `  ·  Đổi bộ gõ: Super + Space"
-        )
-        hint.add_css_class("dim-label")
-        hint.set_xalign(0)
-        hint.set_wrap(True)
-        box.append(hint)
-
-        self.status = Gtk.Label(label="")
-        self.status.add_css_class("dim-label")
-        self.status.set_xalign(0)
-        box.append(self.status)
-
-        save = Gtk.Button(label="Lưu")
-        save.add_css_class("suggested-action")
-        save.connect("clicked", self.on_save)
-        box.append(save)
-
-    def on_save(self, _button):
-        self.config["method"] = "telex" if self.method.get_selected() == 0 else "vni"
-        self.config["tone_style"] = "modern" if self.style.get_selected() == 0 else "old"
-        self.config["start_enabled"] = self.start_enabled.get_active()
-        config.save(self.config)
-        self.status.set_text("Đã lưu. Cấu hình áp dụng khi focus lại ô nhập.")
-
-
 def main() -> None:
-    BaroSettings().run(sys.argv)
+    notify.APP_NAME = APP_NAME
+    BaroKeyApp().run(sys.argv)
 
 
 if __name__ == "__main__":

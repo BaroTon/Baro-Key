@@ -1,4 +1,4 @@
-"""IBus engine for BARO."""
+"""IBus engine for BaroKey."""
 
 from __future__ import annotations
 
@@ -10,11 +10,55 @@ import gi
 gi.require_version("IBus", "1.0")
 from gi.repository import IBus  # noqa: E402
 
-from . import core  # noqa: E402
-from .config import config_path, load  # noqa: E402
+from . import bamboo, core, notify  # noqa: E402
+from .config import config_path, load, save  # noqa: E402
 
 ENGINE_NAME = "baro"
 BUS_NAME = "org.freedesktop.IBus.Baro"
+
+_SHORTCUT_KEYS = {
+    "grave": IBus.KEY_grave,
+    "space": IBus.KEY_space,
+    "tab": IBus.KEY_Tab,
+    "return": IBus.KEY_Return,
+    "backslash": ord("\\"),
+    "bracketleft": ord("["),
+    "bracketright": ord("]"),
+    "semicolon": ord(";"),
+    "apostrophe": ord("'"),
+    "comma": ord(","),
+    "period": ord("."),
+    "slash": ord("/"),
+    "minus": ord("-"),
+    "equal": ord("="),
+}
+
+
+def parse_shortcut(spec: str):
+    """Return (keyval, ctrl, shift, alt, super) or None for an invalid spec."""
+    try:
+        parts = spec.lower().replace(" ", "").split("+")
+    except AttributeError:
+        return None
+    if len(parts) < 2:
+        return None
+    key = parts[-1]
+    mods = set(parts[:-1])
+    if not mods or not mods <= {"ctrl", "shift", "alt", "super"}:
+        return None
+    if key in _SHORTCUT_KEYS:
+        keyval = _SHORTCUT_KEYS[key]
+    elif len(key) == 1 and (key.isalpha() or key.isdigit()):
+        keyval = ord(key)
+    else:
+        return None
+    return (
+        keyval,
+        "ctrl" in mods,
+        "shift" in mods,
+        "alt" in mods,
+        "super" in mods,
+    )
 
 BOUNDARY_KEYS = {
     IBus.KEY_space,
@@ -61,18 +105,28 @@ class BaroEngine(IBus.Engine):
         self.config = load()
         self._config_mtime = self._mtime()
         self.buffer = ""
-        self.vietnamese = bool(self.config.get("start_enabled", True))
+        self._bamboo = None
+        self._engine_options = None
+        self._open_engine()
+        self._enabled = bool(self.config.get("start_enabled", True))
+        self.vietnamese = not bool(self.config.get("english_mode", False))
         self.purpose = IBus.InputPurpose.FREE_FORM
         self._props = IBus.PropList()
         self._mode_prop = IBus.Property(
             key="baro-mode",
             prop_type=IBus.PropType.NORMAL,
-            label=IBus.Text.new_from_string("VI" if self.vietnamese else "EN"),
+            label=IBus.Text.new_from_string(
+                "VI" if self._enabled and self.vietnamese else "EN"
+            ),
             icon="",
-            tooltip=IBus.Text.new_from_string("BARO: Tiếng Việt / English"),
+            tooltip=IBus.Text.new_from_string("BaroKey: Tiếng Việt / English"),
             sensitive=True,
             visible=True,
-            state=IBus.PropState.CHECKED if self.vietnamese else IBus.PropState.UNCHECKED,
+            state=(
+                IBus.PropState.CHECKED
+                if self._enabled and self.vietnamese
+                else IBus.PropState.UNCHECKED
+            ),
         )
         self._props.append(self._mode_prop)
         try:
@@ -96,27 +150,150 @@ class BaroEngine(IBus.Engine):
             self.config = load()
             self._config_mtime = mtime
 
+    def _desired_options(self):
+        return (
+            str(self.config.get("method", "telex")),
+            str(self.config.get("tone_style", "modern")) == "modern",
+            bool(self.config.get("free_marking", True)),
+            bool(self.config.get("auto_restore", True)),
+        )
+
+    def _open_engine(self) -> None:
+        options = self._desired_options()
+        try:
+            self._bamboo = bamboo.BambooEngine(*options)
+        except Exception:
+            # Keep BARO usable on machines where the Rust library has not been
+            # built: the pure-Python core still provides Telex/VNI.
+            self._bamboo = None
+        self._engine_options = options
+
+    def _sync_engine(self) -> None:
+        engine = getattr(self, "_bamboo", None)
+        options = self._desired_options()
+        if engine is None:
+            self._open_engine()
+            return
+        if options == getattr(self, "_engine_options", None):
+            return
+        try:
+            engine.configure(*options)
+            self._engine_options = options
+        except Exception:
+            engine.close()
+            self._open_engine()
+
+    def _clear_word(self) -> None:
+        self.buffer = ""
+        engine = getattr(self, "_bamboo", None)
+        if engine is not None:
+            try:
+                engine.reset()
+            except Exception:
+                pass
+
     def _update_mode_property(self) -> None:
         if self._mode_prop is None:
             return
         try:
-            self._mode_prop.set_label(
-                IBus.Text.new_from_string("VI" if self.vietnamese else "EN")
-            )
+            active = self._enabled and self.vietnamese
+            self._mode_prop.set_label(IBus.Text.new_from_string("VI" if active else "EN"))
             self._mode_prop.set_state(
-                IBus.PropState.CHECKED if self.vietnamese else IBus.PropState.UNCHECKED
+                IBus.PropState.CHECKED if active else IBus.PropState.UNCHECKED
             )
             self.update_property(self._mode_prop)
         except Exception:
             pass
 
+    def _persist(self, **values) -> None:
+        self._reload_config()
+        self.config.update(values)
+        try:
+            save(self.config)
+        except Exception:
+            # A read-only config directory must not interrupt typing.
+            pass
+        self._config_mtime = self._mtime()
+
+    def _send_notification(self, title: str, body: str) -> None:
+        if self.config.get("notifications", True):
+            notify.send(title, body)
+
+    def _toggle_mode(self) -> None:
+        self._flush()
+        self._reload_config()
+        if not self._enabled:
+            self._enabled = True
+            self.vietnamese = True
+        else:
+            self.vietnamese = not self.vietnamese
+        self._persist(
+            start_enabled=self._enabled,
+            english_mode=not self.vietnamese,
+        )
+        self._update_mode_property()
+        shortcut = notify.shortcut_label(
+            self.config.get("shortcut_toggle", "ctrl+shift+v")
+        )
+        if self.vietnamese:
+            self._send_notification(
+                "Đã chuyển sang chế độ Tiếng Việt",
+                f"BaroKey sẽ gõ tiếng Việt. Nhấn {shortcut} để chuyển lại.",
+            )
+        else:
+            self._send_notification(
+                "Đã chuyển sang chế độ Tiếng Anh",
+                f"Nhấn {shortcut} để quay lại tiếng Việt.",
+            )
+
+    def _toggle_enabled(self) -> None:
+        self._flush()
+        self._reload_config()
+        self._enabled = not self._enabled
+        if self._enabled:
+            self.vietnamese = not bool(self.config.get("english_mode", False))
+        self._persist(start_enabled=self._enabled)
+        self._update_mode_property()
+        shortcut = notify.shortcut_label(
+            self.config.get("shortcut_enable", "ctrl+shift+b")
+        )
+        if self._enabled:
+            self._send_notification(
+                "Đã bật bộ gõ tiếng Việt",
+                "BaroKey đã sẵn sàng hoạt động.",
+            )
+        else:
+            self._send_notification(
+                "Đã tắt bộ gõ tiếng Việt",
+                f"Nhấn {shortcut} để bật lại.",
+            )
+
+    def _matches_shortcut(self, keyval, state, spec: str) -> bool:
+        parsed = parse_shortcut(spec)
+        if parsed is None:
+            return False
+        expected, ctrl, shift, alt, super_key = parsed
+        if state & IBus.ModifierType.SHIFT_MASK and ord("A") <= keyval <= ord("Z"):
+            keyval += 32
+        return (
+            keyval == expected
+            and bool(state & IBus.ModifierType.CONTROL_MASK) == ctrl
+            and bool(state & IBus.ModifierType.SHIFT_MASK) == shift
+            and bool(state & IBus.ModifierType.MOD1_MASK) == alt
+            and bool(state & IBus.ModifierType.SUPER_MASK) == super_key
+        )
+
     def _display(self) -> str:
         if not self.buffer:
             return ""
+        engine = getattr(self, "_bamboo", None)
+        if engine is not None:
+            return engine.preedit()
         return core.convert(
             self.buffer,
             self.config.get("method", "telex"),
             self.config.get("tone_style", "modern"),
+            self.config.get("auto_restore", True),
         )
 
     def _show_preedit(self) -> None:
@@ -124,44 +301,53 @@ class BaroEngine(IBus.Engine):
             self.hide_preedit_text()
             return
         text = self._display()
+        if not text:
+            self.hide_preedit_text()
+            return
         self.update_preedit_text(IBus.Text.new_from_string(text), len(text), True)
 
     def _flush(self) -> None:
         if self.buffer:
-            text = self._display()
+            text = self._display() or self.buffer
             self.commit_text(IBus.Text.new_from_string(text))
-            self.buffer = ""
+            self._clear_word()
         self.hide_preedit_text()
 
     def _toggle(self) -> None:
-        self._flush()
-        self.vietnamese = not self.vietnamese
-        self._update_mode_property()
+        self._toggle_mode()
 
     def do_set_content_type(self, purpose, hints):
         self.purpose = purpose
         if self._is_password():
-            self.buffer = ""
+            self._clear_word()
             self.hide_preedit_text()
 
     def do_enable(self):
         self._reload_config(force=True)
-        self.buffer = ""
-        self.vietnamese = bool(self.config.get("start_enabled", True))
+        self._clear_word()
+        self._enabled = bool(self.config.get("start_enabled", True))
+        self.vietnamese = not bool(self.config.get("english_mode", False))
+        self._sync_engine()
         self._update_mode_property()
 
     def do_disable(self):
-        self.buffer = ""
+        self._clear_word()
         self.hide_preedit_text()
 
     def do_focus_in(self):
+        old_mtime = self._config_mtime
         self._reload_config()
+        if self._config_mtime != old_mtime:
+            self._enabled = bool(self.config.get("start_enabled", True))
+            self.vietnamese = not bool(self.config.get("english_mode", False))
+            self._update_mode_property()
+        self._sync_engine()
 
     def do_focus_out(self):
         self._flush()
 
     def do_reset(self):
-        self.buffer = ""
+        self._clear_word()
         self.hide_preedit_text()
 
     def do_property_activate(self, prop_name, state):
@@ -169,9 +355,23 @@ class BaroEngine(IBus.Engine):
             self._toggle()
         return True
 
+    def _feed(self, char: str) -> bool:
+        engine = getattr(self, "_bamboo", None)
+        if engine is not None:
+            try:
+                if not engine.process_key(char):
+                    self._flush()
+                    return False
+            except Exception:
+                # A broken FFI library must not take the whole IME down.
+                self._bamboo = None
+        self.buffer += char
+        self._show_preedit()
+        return True
+
     def do_process_key_event(self, keyval, keycode, state):
         if self._is_password():
-            self.buffer = ""
+            self._clear_word()
             self.hide_preedit_text()
             return False
 
@@ -182,7 +382,15 @@ class BaroEngine(IBus.Engine):
         alt = bool(state & IBus.ModifierType.MOD1_MASK)
         super_key = bool(state & IBus.ModifierType.SUPER_MASK)
 
-        if ctrl and not alt and not super_key and keyval == IBus.KEY_grave:
+        if self._matches_shortcut(
+            keyval, state, self.config.get("shortcut_enable", "ctrl+shift+b")
+        ):
+            self._toggle_enabled()
+            return True
+
+        if self._matches_shortcut(
+            keyval, state, self.config.get("shortcut_toggle", "ctrl+shift+v")
+        ) or (ctrl and not alt and not super_key and keyval == IBus.KEY_grave):
             self._toggle()
             return True
 
@@ -197,12 +405,18 @@ class BaroEngine(IBus.Engine):
             self._flush()
             return False
 
-        if not self.vietnamese:
+        if not self._enabled or not self.vietnamese:
             self._flush()
             return False
 
         if keyval == IBus.KEY_BackSpace:
             if self.buffer:
+                engine = getattr(self, "_bamboo", None)
+                if engine is not None:
+                    try:
+                        engine.backspace()
+                    except Exception:
+                        pass
                 self.buffer = self.buffer[:-1]
                 self._show_preedit()
                 return True
@@ -210,7 +424,7 @@ class BaroEngine(IBus.Engine):
             return False
 
         if keyval == IBus.KEY_Delete or keyval == IBus.KEY_Escape:
-            self.buffer = ""
+            self._clear_word()
             self.hide_preedit_text()
             return False
 
@@ -232,23 +446,17 @@ class BaroEngine(IBus.Engine):
 
         method = self.config.get("method", "telex")
         if char.isascii() and char.isalpha():
-            self.buffer += char
-            self._show_preedit()
-            return True
+            return self._feed(char)
 
         if char in "[]" and method == "telex":
-            self.buffer += char
-            self._show_preedit()
-            return True
+            return self._feed(char)
 
         if method == "vni" and char.isdigit():
             lower = self.buffer.lower()
             has_vowel = any(ch in core.VOWELS for ch in lower)
             modifies_d = char == "9" and lower.endswith("d")
             if self.buffer and (has_vowel or modifies_d):
-                self.buffer += char
-                self._show_preedit()
-                return True
+                return self._feed(char)
             self._flush()
             return False
 
@@ -276,7 +484,7 @@ def main() -> None:
     IBus.init()
     bus = IBus.Bus()
     if not bus.is_connected():
-        print("BARO: cannot connect to the IBus daemon", file=sys.stderr)
+        print("BaroKey: cannot connect to the IBus daemon", file=sys.stderr)
         raise SystemExit(1)
     factory = BaroEngineFactory(bus)
     bus.request_name(BUS_NAME, 0)

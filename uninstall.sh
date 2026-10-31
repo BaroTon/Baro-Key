@@ -9,7 +9,13 @@ SYSTEM_COMPONENT="/usr/share/ibus/component/baro.xml"
 rm -rf "$LIB_DIR"
 rm -f "$BIN_DIR/baro-engine" "$BIN_DIR/baro-settings"
 rm -f "$DATA_HOME/ibus/component/baro.xml"
-rm -f "$DATA_HOME/applications/baro-settings.desktop"
+rm -f "$DATA_HOME/applications/baro-settings.desktop" \
+    "$DATA_HOME/applications/io.github.baro.BaroKey.desktop"
+rm -f "$DATA_HOME"/icons/hicolor/*x*/apps/barokey.png
+rm -f "$DATA_HOME/icons/hicolor/scalable/apps/baro.svg"
+if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+    gtk-update-icon-cache -f -t "$DATA_HOME/icons/hicolor" >/dev/null 2>&1 || true
+fi
 
 if [ -e "$SYSTEM_COMPONENT" ]; then
     if rm -f "$SYSTEM_COMPONENT" 2>/dev/null; then

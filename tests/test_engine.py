@@ -9,6 +9,7 @@ import gi
 gi.require_version("IBus", "1.0")
 from gi.repository import IBus  # noqa: E402
 
+from baro import bamboo  # noqa: E402
 from baro import core  # noqa: E402
 from baro.engine import BaroEngine  # noqa: E402
 
@@ -22,6 +23,7 @@ class FakeEngine(BaroEngine):
         }
         self._config_mtime = 0.0
         self.buffer = ""
+        self._enabled = True
         self.vietnamese = True
         self.purpose = IBus.InputPurpose.FREE_FORM
         self._mode_prop = None
@@ -78,6 +80,12 @@ class EngineKeyEventTest(unittest.TestCase):
         engine.press(" ")
         self.assertEqual(engine.committed, ["asd"])
 
+    def test_auto_restore_can_be_disabled(self):
+        engine = FakeEngine()
+        engine.config["auto_restore"] = False
+        engine.type_text("asd")
+        self.assertEqual(engine.preedit, "ád")
+
     def test_backspace_updates_preedit(self):
         engine = FakeEngine()
         engine.type_text("vieejt")
@@ -122,6 +130,26 @@ class EngineKeyEventTest(unittest.TestCase):
         self.assertFalse(handled)
         self.assertEqual(engine.buffer, "")
         self.assertEqual(engine.committed, [])
+
+    @unittest.skipUnless(bamboo.available(), bamboo.load_error() or "bamboo core not built")
+    def test_bamboo_core_used_for_preedit_and_commit(self):
+        engine = FakeEngine()
+        engine._bamboo = bamboo.BambooEngine("telex", True, True, True)
+        engine._engine_options = engine._desired_options()
+        try:
+            engine.type_text("vieejt")
+            self.assertEqual(engine.preedit, "việt")
+            self.assertFalse(engine.press(" "))
+            self.assertEqual(engine.committed, ["việt"])
+            self.assertEqual(engine.preedit, "")
+
+            engine.type_text("baro")
+            self.assertEqual(engine.preedit, "bảo")
+            engine.do_process_key_event(IBus.KEY_Escape, 0, 0)
+            self.assertEqual(engine.preedit, "")
+        finally:
+            engine._bamboo.close()
+            engine._bamboo = None
 
     def test_alt_flushes_and_passes_through(self):
         engine = FakeEngine()

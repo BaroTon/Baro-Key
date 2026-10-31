@@ -6,7 +6,7 @@
   <version>0.1.0</version>
   <author>BARO</author>
   <license>MIT</license>
-  <homepage>https://github.com/baro-ime/baro</homepage>
+  <homepage>https://github.com/BaroTon/Baro-Key</homepage>
   <textdomain>baro</textdomain>
   <engines>
     <engine>
@@ -19,7 +19,7 @@
       <layout>us</layout>
       <rank>1</rank>
       <symbol>VI</symbol>
-      <icon>input-keyboard</icon>
+      <icon>baro</icon>
     </engine>
   </engines>
 </component>
