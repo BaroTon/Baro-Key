@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import sys
+import time
 
 import gi
 
@@ -84,6 +85,24 @@ _ANY_MODIFIER = (
     | IBus.ModifierType.MOD1_MASK
     | IBus.ModifierType.SUPER_MASK
 )
+
+
+# Diagnostics for shortcuts that "do nothing": create the flag file
+#   ~/.cache/baro/debug-keys
+# and the engine appends what it receives to ~/.cache/baro/keys.log. Only
+# modifier keys, keys held with Ctrl/Alt/Super and function keys are logged,
+# never ordinary typing, so no text ends up in the log.
+def _debug_dir() -> str:
+    base = os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache")
+    return os.path.join(base, "baro")
+
+
+def debug_flag_path() -> str:
+    return os.path.join(_debug_dir(), "debug-keys")
+
+
+def debug_log_path() -> str:
+    return os.path.join(_debug_dir(), "keys.log")
 
 
 def parse_chord(spec: str):
@@ -325,6 +344,7 @@ class BaroEngine(IBus.Engine):
             )
 
     def _toggle_enabled(self) -> None:
+        self._debug("ACTION  turn the engine on / off")
         self._flush()
         self._reload_config()
         self._enabled = not self._enabled
@@ -353,6 +373,46 @@ class BaroEngine(IBus.Engine):
     _chord_peak: frozenset = frozenset()   # modifier names held at the same time
     _chord_dirty = False                    # a normal key was pressed meanwhile
     _chord_fired = False                    # already fired during this hold
+
+    def _debug(self, text: str) -> None:
+        try:
+            if not os.path.exists(debug_flag_path()):
+                return
+            path = debug_log_path()
+            if os.path.exists(path) and os.path.getsize(path) > 200_000:
+                os.replace(path, path + ".old")
+            with open(path, "a", encoding="utf-8") as handle:
+                handle.write(f"{time.strftime('%H:%M:%S')} {text}\n")
+        except OSError:
+            pass
+
+    def _debug_key(self, keyval, keycode, state) -> None:
+        name = IBus.keyval_name(keyval) or hex(keyval)
+        released = bool(state & IBus.ModifierType.RELEASE_MASK)
+        interesting = (
+            keyval in _CHORD_MODS
+            or keyval in MODIFIER_KEYS
+            or bool(
+                state
+                & (
+                    IBus.ModifierType.CONTROL_MASK
+                    | IBus.ModifierType.MOD1_MASK
+                    | IBus.ModifierType.SUPER_MASK
+                )
+            )
+            or (name.startswith("F") and name[1:].isdigit())
+        )
+        if not interesting:
+            return
+        self._debug(
+            f"{'release' if released else 'press  '} {name:<12} keycode={keycode} "
+            f"state=0x{int(state):x} held={sorted(self._chord_peak)} "
+            f"dirty={self._chord_dirty} "
+            f"toggle={self.config.get('shortcut_toggle')!r} "
+            f"enable={self.config.get('shortcut_enable')!r} "
+            f"mode={'on' if self._enabled else 'off'}/"
+            f"{'vi' if self.vietnamese else 'en'}"
+        )
 
     def _reset_chord(self) -> None:
         self._chord_held = frozenset()
@@ -451,6 +511,7 @@ class BaroEngine(IBus.Engine):
         self.hide_preedit_text()
 
     def _toggle(self) -> None:
+        self._debug("ACTION  switch Vietnamese / English")
         self._toggle_mode()
 
     def do_set_content_type(self, purpose, hints):
@@ -473,6 +534,7 @@ class BaroEngine(IBus.Engine):
         self.hide_preedit_text()
 
     def do_focus_in(self):
+        self._debug(f"focus-in  engine pid={os.getpid()}")
         self._reset_chord()
         old_mtime = self._config_mtime
         self._reload_config()
@@ -518,6 +580,7 @@ class BaroEngine(IBus.Engine):
             self._reset_chord()
             return False
 
+        self._debug_key(keyval, keycode, state)
         self._track_chord(keyval, state)
 
         if state & IBus.ModifierType.RELEASE_MASK:
