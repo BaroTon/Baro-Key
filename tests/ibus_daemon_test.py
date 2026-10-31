@@ -61,11 +61,19 @@ class App:
         self.text = ""
         self.commits: list[str] = []
         self.preedit = ""
+        self.registered: list[tuple[str, str]] = []
+        self.updates: list[tuple[str, str]] = []
         self.ic = bus.create_input_context(name)
-        self.ic.set_capabilities(IBus.Capabilite.FOCUS | IBus.Capabilite.PREEDIT_TEXT)
+        self.ic.set_capabilities(
+            IBus.Capabilite.FOCUS
+            | IBus.Capabilite.PREEDIT_TEXT
+            | IBus.Capabilite.PROPERTY
+        )
         self.ic.connect("commit-text", self.on_commit)
         self.ic.connect("update-preedit-text", self.on_preedit)
         self.ic.connect("hide-preedit-text", self.on_hide)
+        self.ic.connect("register-properties", self.on_register)
+        self.ic.connect("update-property", self.on_update)
         self.ic.set_content_type(purpose, 0)
         self.ic.focus_in()
         for _ in range(50):
@@ -86,6 +94,30 @@ class App:
 
     def on_hide(self, _ic):
         self.preedit = ""
+
+    def on_register(self, _ic, props):
+        index = 0
+        while (prop := props.get(index)) is not None:
+            self.registered.append((prop.get_key(), prop.get_symbol().get_text()))
+            index += 1
+
+    def on_update(self, _ic, prop):
+        self.updates.append((prop.get_key(), prop.get_symbol().get_text()))
+
+    def shortcut(self, char: str, state: int) -> bool:
+        keyval = IBus.unicode_to_keyval(char)
+        replies: list[bool] = []
+
+        def done(ic, result):
+            replies.append(ic.process_key_event_async_finish(result))
+
+        self.ic.process_key_event_async(keyval, 0, state, -1, None, done)
+        end = time.monotonic() + 5
+        context = GLib.MainContext.default()
+        while not replies and time.monotonic() < end:
+            context.iteration(True)
+        pump(150)
+        return replies[0] if replies else False
 
     def key(self, char: str) -> bool:
         keyval = IBus.unicode_to_keyval(char)
@@ -144,6 +176,13 @@ def main() -> int:
     bus = connect()
 
     app = App(bus, "telex")
+    # The engine registers its properties once, when it first starts. GNOME
+    # Shell shows the symbol of the "InputMode" one in the top bar.
+    check(
+        ("InputMode", "VI") in app.registered,
+        "InputMode registered as VI",
+        app.registered,
+    )
     app.type("vieejt")
     check(app.preedit == "việt", "telex preedit", app.preedit)
     app.key(" ")
@@ -201,6 +240,15 @@ def main() -> int:
     app.type("aa dd ")
     check(app.commits == [], "password has no commits", app.commits)
     check(app.preedit == "", "password has no preedit", app.preedit)
+    app.close()
+
+    # The top bar follows the mode through the "InputMode" property symbol.
+    app = App(bus, "panel")
+    toggle = IBus.ModifierType.CONTROL_MASK | IBus.ModifierType.SHIFT_MASK
+    app.shortcut("v", toggle)
+    check(app.updates[-1:] == [("InputMode", "EN")], "toggle sends EN", app.updates)
+    app.shortcut("v", toggle)
+    check(app.updates[-1:] == [("InputMode", "VI")], "toggle back sends VI", app.updates)
     app.close()
 
     # Shortcuts can be any key combination, not just the built-in presets.

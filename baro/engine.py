@@ -115,6 +115,33 @@ MODIFIER_KEYS = {
 }
 
 
+# GNOME Shell shows the symbol of the property whose key is "InputMode" in the
+# top bar (two characters at most), next to the input source. Using that key
+# lets the bar follow the Vietnamese / English mode instead of staying on the
+# static <symbol> from the component file.
+MODE_PROP_KEY = "InputMode"
+LEGACY_MODE_PROP_KEY = "baro-mode"
+
+
+def mode_symbol(active: bool) -> str:
+    return "VI" if active else "EN"
+
+
+def make_mode_property(active: bool) -> "IBus.Property":
+    text = mode_symbol(active)
+    return IBus.Property(
+        key=MODE_PROP_KEY,
+        prop_type=IBus.PropType.NORMAL,
+        label=IBus.Text.new_from_string(text),
+        symbol=IBus.Text.new_from_string(text),
+        icon="",
+        tooltip=IBus.Text.new_from_string("BaroKey: Tiếng Việt / English"),
+        sensitive=True,
+        visible=True,
+        state=IBus.PropState.CHECKED if active else IBus.PropState.UNCHECKED,
+    )
+
+
 class BaroEngine(IBus.Engine):
     def __init__(self, bus, object_path):
         kwargs = {
@@ -134,23 +161,19 @@ class BaroEngine(IBus.Engine):
         self.vietnamese = not bool(self.config.get("english_mode", False))
         self.purpose = IBus.InputPurpose.FREE_FORM
         self._props = IBus.PropList()
-        self._mode_prop = IBus.Property(
-            key="baro-mode",
-            prop_type=IBus.PropType.NORMAL,
-            label=IBus.Text.new_from_string(
-                "VI" if self._enabled and self.vietnamese else "EN"
-            ),
-            icon="",
-            tooltip=IBus.Text.new_from_string("BaroKey: Tiếng Việt / English"),
-            sensitive=True,
-            visible=True,
-            state=(
-                IBus.PropState.CHECKED
-                if self._enabled and self.vietnamese
-                else IBus.PropState.UNCHECKED
-            ),
-        )
+        self._mode_prop = make_mode_property(self._enabled and self.vietnamese)
         self._props.append(self._mode_prop)
+        self._register_properties()
+
+    def _register_properties(self) -> None:
+        """(Re)send the property list so the panel can show the mode.
+
+        Done at start and again on enable / focus-in: a registration sent
+        while the daemon is still wiring up the engine is dropped, and the
+        panel only follows later updates for properties it has been given.
+        """
+        if self._mode_prop is None:
+            return
         try:
             self.register_properties(self._props)
         except Exception:
@@ -219,7 +242,9 @@ class BaroEngine(IBus.Engine):
             return
         try:
             active = self._enabled and self.vietnamese
-            self._mode_prop.set_label(IBus.Text.new_from_string("VI" if active else "EN"))
+            text = IBus.Text.new_from_string(mode_symbol(active))
+            self._mode_prop.set_label(text)
+            self._mode_prop.set_symbol(IBus.Text.new_from_string(mode_symbol(active)))
             self._mode_prop.set_state(
                 IBus.PropState.CHECKED if active else IBus.PropState.UNCHECKED
             )
@@ -354,6 +379,7 @@ class BaroEngine(IBus.Engine):
         self.vietnamese = not bool(self.config.get("english_mode", False))
         self._sync_engine()
         self._update_mode_property()
+        self._register_properties()
 
     def do_disable(self):
         self._clear_word()
@@ -367,6 +393,7 @@ class BaroEngine(IBus.Engine):
             self.vietnamese = not bool(self.config.get("english_mode", False))
             self._update_mode_property()
         self._sync_engine()
+        self._register_properties()
 
     def do_focus_out(self):
         self._flush()
@@ -376,7 +403,7 @@ class BaroEngine(IBus.Engine):
         self.hide_preedit_text()
 
     def do_property_activate(self, prop_name, state):
-        if prop_name == "baro-mode":
+        if prop_name in (MODE_PROP_KEY, LEGACY_MODE_PROP_KEY):
             self._toggle()
         return True
 

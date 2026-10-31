@@ -11,7 +11,7 @@ from gi.repository import IBus  # noqa: E402
 
 from baro import bamboo  # noqa: E402
 from baro import core  # noqa: E402
-from baro.engine import BaroEngine  # noqa: E402
+from baro.engine import MODE_PROP_KEY, BaroEngine, make_mode_property  # noqa: E402
 
 
 class FakeEngine(BaroEngine):
@@ -55,6 +55,36 @@ class FakeEngine(BaroEngine):
     def type_text(self, text, state=0):
         for char in text:
             self.press(char, state)
+
+
+class ModePropertyTest(unittest.TestCase):
+    def test_property_uses_input_mode_key_and_symbol(self):
+        for active, text in ((True, "VI"), (False, "EN")):
+            prop = make_mode_property(active)
+            self.assertEqual(prop.get_key(), MODE_PROP_KEY)
+            self.assertEqual(MODE_PROP_KEY, "InputMode")
+            self.assertEqual(prop.get_symbol().get_text(), text)
+            self.assertEqual(prop.get_label().get_text(), text)
+
+    def test_toggle_updates_symbol_sent_to_the_panel(self):
+        engine = FakeEngine()
+        engine._mode_prop = make_mode_property(True)
+        sent = []
+        engine.update_property = lambda prop: sent.append(prop.get_symbol().get_text())
+        engine._update_mode_property()
+        engine.vietnamese = False
+        engine._update_mode_property()
+        engine._enabled = False
+        engine.vietnamese = True
+        engine._update_mode_property()
+        self.assertEqual(sent, ["VI", "EN", "EN"])
+
+    def test_both_keys_toggle_the_mode(self):
+        for key in ("InputMode", "baro-mode"):
+            engine = FakeEngine()
+            engine._toggle = lambda: setattr(engine, "toggled", True)
+            engine.do_property_activate(key, 0)
+            self.assertTrue(getattr(engine, "toggled", False), key)
 
 
 class ShortcutMatchTest(unittest.TestCase):
