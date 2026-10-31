@@ -354,7 +354,14 @@ class BaroEngine(IBus.Engine):
         if not text:
             self.hide_preedit_text()
             return
-        self.update_preedit_text(IBus.Text.new_from_string(text), len(text), True)
+        preedit = IBus.Text.new_from_string(text)
+        # Ask the client not to underline the word being typed. Apps that
+        # honour IBus attributes then show it like ordinary text; the rest
+        # keep drawing their own composition style.
+        preedit.append_attribute(
+            IBus.AttrType.UNDERLINE, IBus.AttrUnderline.NONE, 0, len(text)
+        )
+        self.update_preedit_text(preedit, len(text), True)
 
     def _flush(self) -> None:
         if self.buffer:
