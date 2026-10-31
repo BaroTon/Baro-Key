@@ -57,10 +57,34 @@ def run(app):
     window.set_default_size(1024, 720)
     queue = list(SHOTS)
 
-    def step():
-        if not queue:
+    def dialog_shot():
+        app.ui_style = "default"
+        window.config["ui_style"] = "default"
+        window.apply_style_class()
+        window._sync_style()
+        window.config["theme"] = "dark"
+        window._sync_theme()
+        app.apply_theme("dark")
+        dialog = app_mod.ShortcutDialog(
+            window, "Chuyển đổi Việt / Anh", app_mod.SHORTCUT_PRESETS["toggle"],
+            "ctrl+alt+k", "ctrl+shift+v", "ctrl+shift+b", "Bật / Tắt bộ gõ", lambda _s: None,
+        )
+        dialog.present()
+
+        def shoot_dialog():
+            if not snapshot(dialog, os.path.join(OUT, "shortcut-dialog.png")):
+                return True
+            print("saved shortcut-dialog", flush=True)
+            dialog.close()
             app.quit()
             return False
+
+        GLib.timeout_add(800, shoot_dialog)
+        return False
+
+    def step():
+        if not queue:
+            return dialog_shot()
         name, page, theme, style = queue.pop(0)
         app.ui_style = style
         window.config["ui_style"] = style

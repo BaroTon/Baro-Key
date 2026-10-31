@@ -557,6 +557,24 @@ label.key-plus {
     font-size: 11px;
 }
 
+box.key-capture {
+    background-color: $keycap;
+    background-image: none;
+    border: 1px solid $accent_light;
+    border-radius: 12px;
+    padding: 26px 16px;
+    min-height: 40px;
+}
+
+label.capture-hint {
+    color: $muted;
+    font-size: 13px;
+}
+
+label.capture-hint.capture-error {
+    color: #f87171;
+}
+
 box.key-tile {
     background-color: $card;
     background-image: none;
@@ -1582,26 +1600,72 @@ def prefers_dark() -> bool:
     return False
 
 
+_MODIFIER_KEYVALS = {
+    Gdk.KEY_Control_L, Gdk.KEY_Control_R, Gdk.KEY_Shift_L, Gdk.KEY_Shift_R,
+    Gdk.KEY_Alt_L, Gdk.KEY_Alt_R, Gdk.KEY_Super_L, Gdk.KEY_Super_R,
+    Gdk.KEY_Meta_L, Gdk.KEY_Meta_R, Gdk.KEY_Hyper_L, Gdk.KEY_Hyper_R,
+    Gdk.KEY_Caps_Lock, Gdk.KEY_Num_Lock, Gdk.KEY_ISO_Level3_Shift,
+}
+_KEY_NAME_FIXES = {"iso_left_tab": "tab"}
+
+
+def spec_from_event(controller: Gtk.EventControllerKey, keyval: int, keycode: int,
+                    state: Gdk.ModifierType) -> str | None:
+    """Turn a key press into a spec like "ctrl+alt+k"; None for a bare modifier."""
+    if keyval in _MODIFIER_KEYVALS:
+        return None
+    # The key itself, as if no modifier were held: Shift+1 is "1", not "exclam".
+    base = keyval
+    display = Gdk.Display.get_default()
+    if display is not None:
+        group = controller.get_group() if controller.get_current_event() else 0
+        found, translated, *_rest = display.translate_key(
+            keycode, Gdk.ModifierType(0), group
+        )
+        if found and translated:
+            base = translated
+    name = Gdk.keyval_name(Gdk.keyval_to_lower(base)) or ""
+    name = _KEY_NAME_FIXES.get(name.lower(), name.lower())
+    mods = []
+    for flag, word in (
+        (Gdk.ModifierType.CONTROL_MASK, "ctrl"),
+        (Gdk.ModifierType.ALT_MASK, "alt"),
+        (Gdk.ModifierType.SHIFT_MASK, "shift"),
+        (Gdk.ModifierType.SUPER_MASK, "super"),
+    ):
+        if state & flag:
+            mods.append(word)
+    return "+".join(mods + [name])
+
+
 class ShortcutDialog(Gtk.Window):
+    """Press any key combination to assign it; presets are only suggestions."""
+
     def __init__(
         self,
         parent: Gtk.Window,
         title: str,
         presets,
         current: str,
+        default: str,
+        other: str,
+        other_title: str,
         on_save,
     ):
         super().__init__(
             transient_for=parent,
             modal=True,
             title=title,
-            default_width=460,
-            default_height=380,
+            default_width=500,
+            default_height=420,
         )
         self.add_css_class("barokey")
         self._on_save = on_save
+        self._default = default
+        self._other = other
+        self._other_title = other_title
         self._current = current
-        self._cards: list[Gtk.Button] = []
+        self._chosen = current
 
         self.set_titlebar(make_titlebar(label(title, "dialog-title")))
 
@@ -1614,40 +1678,104 @@ class ShortcutDialog(Gtk.Window):
 
         content.append(
             label(
-                "Chọn tổ hợp phím bạn muốn dùng cho BaroKey.",
+                "Nhấn tổ hợp phím bạn muốn dùng. Cần có Ctrl, Alt hoặc Super "
+                "(riêng phím F1–F12 có thể dùng một mình).",
                 "option-sub",
                 wrap=True,
             )
         )
 
+        self._capture = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        self._capture.add_css_class("key-capture")
+        self._capture_keys = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        self._capture_keys.set_halign(Gtk.Align.CENTER)
+        self._capture.append(self._capture_keys)
+        content.append(self._capture)
+
+        self._message = label("", "capture-hint", wrap=True, xalign=0.5)
+        self._message.set_halign(Gtk.Align.CENTER)
+        content.append(self._message)
+
+        content.append(label("Gợi ý", "section-heading"))
+        suggestions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        suggestions.set_halign(Gtk.Align.START)
         for spec, display in presets:
-            card, *_ = radio_card(display, spec, active=spec == current)
-            card.baro_spec = spec  # type: ignore[attr-defined]
-            card.connect("clicked", self._select, spec)
-            self._cards.append(card)
-            content.append(card)
+            button = Gtk.Button(label=display)
+            button.add_css_class("ghost")
+            button.connect("clicked", lambda _b, spec=spec: self._choose(spec))
+            suggestions.append(button)
+        content.append(suggestions)
 
         content.append(spacer())
 
         actions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        actions.set_halign(Gtk.Align.END)
+        reset = Gtk.Button(label="Mặc định")
+        reset.add_css_class("ghost")
+        reset.connect("clicked", lambda *_: self._choose(self._default))
+        actions.append(reset)
+        actions.append(spacer())
         cancel = Gtk.Button(label="Hủy")
         cancel.add_css_class("ghost")
         cancel.connect("clicked", lambda *_: self.close())
-        save = Gtk.Button(label="Lưu")
-        save.add_css_class("primary")
-        save.connect("clicked", self._save)
+        self._save_button = Gtk.Button(label="Lưu")
+        self._save_button.add_css_class("primary")
+        self._save_button.connect("clicked", self._save)
         actions.append(cancel)
-        actions.append(save)
+        actions.append(self._save_button)
         content.append(actions)
 
-    def _select(self, _button: Gtk.Button, spec: str) -> None:
-        self._current = spec
-        for card in self._cards:
-            set_radio_active(card, getattr(card, "baro_spec", None) == spec)
+        keys = Gtk.EventControllerKey()
+        keys.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        keys.connect("key-pressed", self._on_key_pressed)
+        self.add_controller(keys)
+        self._keys = keys
+
+        self._choose(current)
+
+    def _choose(self, spec: str) -> None:
+        self._chosen = spec
+        fill_keycaps(self._capture_keys, spec, large=True)
+        self._validate()
+
+    def _validate(self) -> None:
+        spec = self._chosen
+        problem = None
+        if not config.valid_shortcut(spec):
+            problem = "Tổ hợp này không dùng được. Hãy thêm Ctrl, Alt hoặc Super."
+        elif config.normalize_shortcut(spec) == config.normalize_shortcut(self._other):
+            problem = f"Trùng với phím tắt “{self._other_title}”. Hãy chọn tổ hợp khác."
+        if problem:
+            self._message.set_text(problem)
+            self._message.add_css_class("capture-error")
+        else:
+            self._message.set_text(
+                "Đang dùng tổ hợp này." if spec == self._current else "Nhấn Lưu để áp dụng."
+            )
+            self._message.remove_css_class("capture-error")
+        self._save_button.set_sensitive(problem is None)
+
+    def _on_key_pressed(self, controller, keyval, keycode, state) -> bool:
+        plain = not (
+            state
+            & (
+                Gdk.ModifierType.CONTROL_MASK
+                | Gdk.ModifierType.ALT_MASK
+                | Gdk.ModifierType.SUPER_MASK
+                | Gdk.ModifierType.SHIFT_MASK
+            )
+        )
+        if keyval == Gdk.KEY_Escape and plain:
+            self.close()
+            return True
+        spec = spec_from_event(controller, keyval, keycode, state)
+        if spec is not None:
+            self._choose(spec)
+        return True  # swallow everything: the keys are the input here
 
     def _save(self, _button: Gtk.Button) -> None:
-        self._on_save(self._current)
+        if not config.valid_shortcut(self._chosen):
+            return
+        self._on_save(config.normalize_shortcut(self._chosen))
         self.close()
 
 
@@ -2444,7 +2572,8 @@ class SettingsWindow(Gtk.ApplicationWindow):
         page.append(rows)
         page.append(spacer())
         banner = info_banner(
-            "Lưu ý: Một số phím tắt có thể bị xung đột với ứng dụng khác trong hệ thống. "
+            "Bấm Thay đổi rồi nhấn tổ hợp phím bạn muốn. Một số phím tắt có thể bị xung đột "
+            "với ứng dụng khác (ví dụ Ctrl + Shift + V là phím dán trong terminal). "
             "Chuyển nguồn nhập bằng Super + Space do IBus quản lý."
         )
         banner.set_margin_top(24)
@@ -2871,11 +3000,18 @@ class SettingsWindow(Gtk.ApplicationWindow):
         self._save("Đã cập nhật thông báo")
 
     def _edit_shortcut(self, _button, key: str, title: str, presets) -> None:
+        other_key = "shortcut_enable" if key == "shortcut_toggle" else "shortcut_toggle"
+        other_title = (
+            "Bật / Tắt bộ gõ" if other_key == "shortcut_enable" else "Chuyển đổi Việt / Anh"
+        )
         dialog = ShortcutDialog(
             self,
             title,
             presets,
             self.config.get(key, presets[0][0]),
+            config.DEFAULTS[key],
+            self.config.get(other_key, config.DEFAULTS[other_key]),
+            other_title,
             lambda spec: self._set_shortcut(key, spec),
         )
         dialog.present()

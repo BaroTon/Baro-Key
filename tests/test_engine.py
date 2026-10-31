@@ -87,6 +87,59 @@ class ModePropertyTest(unittest.TestCase):
             self.assertTrue(getattr(engine, "toggled", False), key)
 
 
+class ShortcutMatchTest(unittest.TestCase):
+    CTRL = int(IBus.ModifierType.CONTROL_MASK)
+    SHIFT = int(IBus.ModifierType.SHIFT_MASK)
+    ALT = int(IBus.ModifierType.MOD1_MASK)
+    SUPER = int(IBus.ModifierType.SUPER_MASK)
+
+    def matches(self, spec, keyval, state):
+        return FakeEngine()._matches_shortcut(keyval, state, spec)
+
+    def test_letter_combinations(self):
+        self.assertTrue(self.matches("ctrl+alt+k", IBus.KEY_k, self.CTRL | self.ALT))
+        self.assertFalse(self.matches("ctrl+alt+k", IBus.KEY_k, self.CTRL))
+        self.assertFalse(self.matches("ctrl+alt+k", IBus.KEY_j, self.CTRL | self.ALT))
+
+    def test_shifted_letter_arrives_upper_case(self):
+        self.assertTrue(
+            self.matches("ctrl+shift+v", IBus.KEY_V, self.CTRL | self.SHIFT)
+        )
+
+    def test_function_keys_work_alone(self):
+        self.assertTrue(self.matches("f9", IBus.KEY_F9, 0))
+        self.assertFalse(self.matches("f9", IBus.KEY_F9, self.CTRL))
+        self.assertTrue(self.matches("shift+f9", IBus.KEY_F9, self.SHIFT))
+
+    def test_named_keys(self):
+        self.assertTrue(self.matches("super+space", IBus.KEY_space, self.SUPER))
+        self.assertTrue(self.matches("ctrl+page_up", IBus.KEY_Page_Up, self.CTRL))
+        self.assertTrue(self.matches("alt+grave", IBus.KEY_grave, self.ALT))
+        self.assertTrue(self.matches("ctrl+backspace", IBus.KEY_BackSpace, self.CTRL))
+
+    def test_shifted_symbols_match_their_base_key(self):
+        self.assertTrue(
+            self.matches("ctrl+shift+1", IBus.KEY_exclam, self.CTRL | self.SHIFT)
+        )
+        self.assertTrue(
+            self.matches("ctrl+shift+slash", IBus.KEY_question, self.CTRL | self.SHIFT)
+        )
+
+    def test_invalid_specs_never_match(self):
+        for spec in ("a", "shift+a", "ctrl+nosuchkey", "", "ctrl"):
+            self.assertFalse(self.matches(spec, IBus.KEY_a, self.CTRL), spec)
+
+    def test_custom_shortcut_toggles_the_mode(self):
+        engine = FakeEngine()
+        engine.config["shortcut_toggle"] = "ctrl+alt+k"
+        toggled = []
+        engine._toggle = lambda: toggled.append(True)
+        self.assertTrue(
+            engine.do_process_key_event(IBus.KEY_k, 0, self.CTRL | self.ALT)
+        )
+        self.assertEqual(toggled, [True])
+
+
 class EngineKeyEventTest(unittest.TestCase):
     def test_telex_word_committed_on_space(self):
         engine = FakeEngine()
